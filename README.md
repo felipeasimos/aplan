@@ -16,11 +16,11 @@ It is also provided as a crate.
   - [ ] SPI/PV/EV/SPI/SV/CPI/CV
   - [ ] Member management
   - [ ] Gantt
-  - [ ] CPM
 - [ ] Burndown Manager
   - [ ] Viewer
   - [ ] Plot
   - [ ] Manage story
+- [ ] CLI
 
 ### Features
 

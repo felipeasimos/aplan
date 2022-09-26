@@ -1,6 +1,14 @@
 use std::{ops::Range, option::Iter};
 
+use chrono::Utc;
+
 use crate::task_id::TaskId;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TaskStatus {
+    InProgress,
+    Done
+}
 
 #[derive(Clone, Debug)]
 pub struct Task {
@@ -8,7 +16,8 @@ pub struct Task {
     pub(crate) id: TaskId,
     pub(crate) planned_value: f64,
     pub(crate) actual_cost: f64,
-    pub(crate) num_child: u32
+    pub(crate) num_child: u32,
+    pub(crate) status: TaskStatus,
 }
 
 impl Eq for Task {}
@@ -26,7 +35,8 @@ impl Task {
             name: name.to_string(),
             planned_value: 0.0,
             actual_cost: 0.0,
-            num_child: 0
+            num_child: 0,
+            status: TaskStatus::InProgress
         }
     }
 
@@ -52,6 +62,14 @@ impl Task {
 
     pub fn child_ids(&self) -> Vec<TaskId> {
         self.id().child_ids(self.num_child)
+    }
+
+    pub fn is_trunk(&self) -> bool {
+        self.num_child > 0
+    }
+
+    pub fn is_leaf(&self) -> bool {
+        self.num_child == 0
     }
 }
 

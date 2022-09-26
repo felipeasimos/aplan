@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{task::Task, task_id::TaskId};
-use std::io::Write;
+use crate::{task::{Task, TaskStatus}, task_id::TaskId};
 
 #[derive(Debug)]
 pub struct WSB {
@@ -9,27 +8,46 @@ pub struct WSB {
 }
 
 impl WSB {
-
-    fn get_root_id() -> TaskId {
-        TaskId::new(vec![])
-    }
-
     pub fn new(name: &str) -> Self {
-        let root_id = Self::get_root_id();
+        let root_id = TaskId::get_root_id();
         let root_task = Task::new(root_id.clone(), name);
         let mut map = HashMap::new();
-        map.insert(root_id.clone(), root_task);
+        map.insert(root_id, root_task);
         Self {
             tree: map,
         }
     }
 
-    pub fn get_planned_value(&self) -> f64 {
-        self.tree.get(&Self::get_root_id()).unwrap().get_planned_value()
+    pub fn planned_value(&self) -> f64 {
+        self.tree.get(&TaskId::get_root_id()).unwrap().get_planned_value()
     }
 
-    pub fn get_actual_cost(&self) -> f64 {
-        self.tree.get(&Self::get_root_id()).unwrap().get_actual_cost()
+    pub fn actual_cost(&self) -> f64 {
+        self.tree.get(&TaskId::get_root_id()).unwrap().get_actual_cost()
+    }
+
+    pub fn completion_percentage(&self) -> f64 {
+        self.done_tasks().len() as f64 / self.tasks().len() as f64
+    }
+
+    pub fn earned_value(&self) -> f64 {
+        self.planned_value() * self.completion_percentage()
+    }
+
+    pub fn spi(&self) -> f64 {
+        self.earned_value() / self.planned_value()
+    }
+
+    pub fn sv(&self) -> f64 {
+        self.earned_value() - self.planned_value()
+    }
+
+    pub fn cpi(&self) -> f64 {
+        self.earned_value() / self.actual_cost()
+    }
+
+    pub fn cv(&self) -> f64 {
+        self.earned_value() - self.actual_cost()
     }
 
     pub fn get_task(&self, id: &str) -> Option<&Task> {
@@ -51,9 +69,7 @@ impl WSB {
         parent_task.num_child += 1;
 
         // get new task id
-        let mut task_id_vec = parent_task_id.as_vec().clone();
-        task_id_vec.push(parent_task.num_child);
-        let task_id = TaskId::new(task_id_vec);
+        let task_id = parent_task_id.new_child_id(parent_task.num_child);
 
         // create task
         let task = Task::new(task_id.clone(), name);
@@ -72,21 +88,14 @@ impl WSB {
     }
 
     fn apply_along_path<F: Fn(&mut Task)>(&mut self, id: &TaskId, func: F) -> Option<()> {
-        let root = self.tree.get_mut(&Self::get_root_id())?;
-        func(root);
-        if &Self::get_root_id() == id {
-            return Some(());
-        }
-        // start iterating from the root's children
-        id.as_vec().iter().enumerate().for_each(|(depth, _)| {
-            // for each node, get the child associated with the id
-            let mut child_id_vec = id.as_vec().clone();
-            child_id_vec.truncate(depth+1);
-            let child_id = TaskId::new(child_id_vec);
-            let child = self.tree.get_mut(&child_id).unwrap();
-            func(child);
-        });
-        Some(())
+        id
+            .path()
+            .iter()
+            .try_for_each(|id| {
+                let child = self.tree.get_mut(&id)?;
+                func(child);
+                Some(())
+            })
     }
 
     pub fn subtract_id(&mut self, child_id: &TaskId, layer_idx: usize) {
@@ -114,6 +123,7 @@ impl WSB {
             return None;
         }
 
+        self.remove_task_stats_from_tree(&task_id);
         let parent_id = task_id.parent()?;
         let parent_childs = {
             let mut parent = self.tree.get_mut(&parent_id)?;
@@ -138,59 +148,64 @@ impl WSB {
         task_id.as_vec_mut()[layer_idx] = parent_childs.len() as u32;
         self.tree.remove(&task_id);
 
-        self.remove_task_stats_from_tree(&task);
-
         Some(task)
     }
 
-    fn remove_task_stats_from_tree(&mut self, task: &Task) {
+    fn remove_task_stats_from_tree(&mut self, task_id: &TaskId) {
 
-        let parent_id = task.id().parent().unwrap();
+        self.set_actual_cost(&task_id.to_string(), 0.0);
+        self.set_planned_value(&task_id.to_string(), 0.0);
+    }
 
-        // remove planned value
-        let planned_value_to_remove = task.clone().get_planned_value();
-        self.apply_along_path(&parent_id, |mut task| {
-            task.planned_value -= planned_value_to_remove
-        });
-
-        // remove actual cost
-        let actual_cost_to_remove = task.clone().get_actual_cost();
-        self.apply_along_path(&parent_id, |mut task| {
-            task.actual_cost -= actual_cost_to_remove
-        });
+    fn children_are_done(&self, task_id: &TaskId) -> bool {
+        self.tree.get(task_id).unwrap()
+            .child_ids()
+            .iter()
+            .find(|id| self.tree.get(id).unwrap().status != TaskStatus::Done)
+            .is_none()
     }
 
     pub fn set_actual_cost(&mut self, id: &str, actual_cost: f64) -> Option<()> {
         let task_id = TaskId::parse(id)?;
         let parent_id = task_id.parent()?;
         {
-            let task = self.tree.get(&task_id)?;
-            // can't set actual cost of trunk node
-            if task.num_child > 0 {
+            let mut task = self.tree.get_mut(&task_id)?;
+            if task.is_trunk() {
                 return None;
             }
-        }
-        let old_actual_cost = self.tree.get_mut(&task_id)?.actual_cost;
-        self.tree.get_mut(&task_id)?.actual_cost = actual_cost;
-        let diff = actual_cost - old_actual_cost;
+            let old_actual_cost = task.actual_cost;
+            task.actual_cost = actual_cost;
+            let diff = actual_cost - old_actual_cost;
 
-        self.apply_along_path(&parent_id, |mut task| {
-            task.actual_cost += diff;
-        })
+                self.apply_along_path(&parent_id, |mut task| {
+                    task.planned_value += diff;
+                });
+        }
+
+        task_id
+            .clone()
+            .path()
+            .iter()
+            .rev()
+            .try_for_each(|id| {
+                if self.children_are_done(&id) {
+                    self.tree.get_mut(&id)?.status = TaskStatus::Done;
+                }
+                Some(())
+            });
+        Some(())
     }
 
     pub fn set_planned_value(&mut self, id: &str, planned_value: f64) -> Option<()> {
         let task_id = TaskId::parse(id)?;
         let parent_id = task_id.parent()?;
-        {
-            let task = self.tree.get(&task_id)?;
-            // can't set actual cost of trunk node
-            if task.num_child > 0 {
-                return None;
-            }
+        let mut task = self.tree.get_mut(&task_id)?;
+        // can't set actual cost of trunk node
+        if task.is_trunk() {
+            return None;
         }
-        let old_planned_value = self.tree.get_mut(&task_id)?.planned_value;
-        self.tree.get_mut(&task_id)?.planned_value = planned_value;
+        let old_planned_value = task.planned_value;
+        task.planned_value = planned_value;
         let diff = planned_value - old_planned_value;
 
         self.apply_along_path(&parent_id, |mut task| {
@@ -204,7 +219,6 @@ impl WSB {
         let root_str = root.to_string();
 
         root.child_ids().iter().for_each(|child_id| {
-            dbg!(&child_id);
             let child = self.tree.get(child_id).unwrap();
             s += &format!("\t\"{}\" -> \"{}\"\n", root_str, child.to_string());
             s += &self.subtree_to_dot_str(child_id);
@@ -214,8 +228,36 @@ impl WSB {
 
     pub fn to_dot_str(&self) -> String {
         "digraph G {\n".to_string() +
-            &self.subtree_to_dot_str(&Self::get_root_id()) +
+            &self.subtree_to_dot_str(&TaskId::get_root_id()) +
             &"}".to_string()
+    }
+
+    pub fn tasks(&self) -> Vec<&Task> {
+        self.tree
+            .values()
+            .filter(|task| task.is_leaf())
+            .collect::<Vec<&Task>>()
+    }
+
+    pub fn todo_tasks(&self) -> Vec<&Task> {
+        self.tree
+            .values()
+            .filter(|task| task.is_leaf() && task.status != TaskStatus::Done)
+            .collect::<Vec<&Task>>()
+    }
+
+    pub fn in_progress_tasks(&self) -> Vec<&Task> {
+        self.tree
+            .values()
+            .filter(|task| task.is_leaf() && task.status == TaskStatus::InProgress)
+            .collect::<Vec<&Task>>()
+    }
+
+    pub fn done_tasks(&self) -> Vec<&Task> {
+        self.tree
+            .values()
+            .filter(|task| task.is_leaf() && task.status == TaskStatus::Done)
+            .collect::<Vec<&Task>>()
     }
 }
 
@@ -243,7 +285,7 @@ mod tests {
         assert_eq!(wsb.get_task("1.1"), Some(&Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
         assert_eq!(wsb.get_task_mut("1.1"), Some(&mut Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
         assert_eq!(wsb.set_planned_value("1.1", 2.0), Some(()));
-        assert_eq!(wsb.get_planned_value(), 2.0);
+        assert_eq!(wsb.planned_value(), 2.0);
         assert_eq!(wsb.get_task("1.1").unwrap().get_planned_value(), 2.0);
         assert_eq!(wsb.get_task("1").unwrap().get_planned_value(), 2.0);
 
@@ -253,7 +295,7 @@ mod tests {
         assert_eq!(wsb.get_task("2.1"), Some(&Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
         assert_eq!(wsb.get_task_mut("2.1"), Some(&mut Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
         assert_eq!(wsb.set_planned_value("2.1", 7.0), Some(()));
-        assert_eq!(wsb.get_planned_value(), 9.0);
+        assert_eq!(wsb.planned_value(), 9.0);
         assert_eq!(wsb.get_task("2.1").unwrap().get_planned_value(), 7.0);
         assert_eq!(wsb.get_task("2.2").unwrap().get_planned_value(), 0.0);
         assert_eq!(wsb.get_task("2").unwrap().get_planned_value(), 7.0);
@@ -261,7 +303,7 @@ mod tests {
         assert_eq!(wsb.get_task("2.2"), Some(&Task::new(TaskId::new(vec![2,2]), "Create help menu")));
         assert_eq!(wsb.get_task_mut("2.2"), Some(&mut Task::new(TaskId::new(vec![2,2]), "Create help menu")));
         assert_eq!(wsb.set_planned_value("2.2", 33.0), Some(()));
-        assert_eq!(wsb.get_planned_value(), 42.0);
+        assert_eq!(wsb.planned_value(), 42.0);
         assert_eq!(wsb.get_task("2.1").unwrap().get_planned_value(), 7.0);
         assert_eq!(wsb.get_task("2.2").unwrap().get_planned_value(), 33.0);
         assert_eq!(wsb.get_task("2").unwrap().get_planned_value(), 40.0);
@@ -272,23 +314,23 @@ mod tests {
         assert_eq!(wsb.get_task("3.1"), Some(&Task::new(TaskId::new(vec![3,1]), "Create plot visualizer")));
         assert_eq!(wsb.get_task_mut("3.1"), Some(&mut Task::new(TaskId::new(vec![3,1]), "Create plot visualizer")));
         assert_eq!(wsb.set_planned_value("3.1", 20.0), Some(()));
-        assert_eq!(wsb.get_planned_value(), 62.0);
+        assert_eq!(wsb.planned_value(), 62.0);
         assert_eq!(wsb.get_task("3.1").unwrap().get_planned_value(), 20.0);
         assert_eq!(wsb.get_task("3").unwrap().get_planned_value(), 20.0);
         assert_eq!(wsb.remove("2.1"), Some(Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
 
-        assert_eq!(wsb.get_planned_value(), 55.0);
+        assert_eq!(wsb.planned_value(), 55.0);
         assert_eq!(wsb.get_task("2.1"), Some(&Task::new(TaskId::new(vec![2, 1]), "Create help menu")));
         assert_eq!(wsb.get_task("2"), Some(&Task::new(TaskId::new(vec![2]), "Create CLI tool")));
         assert_eq!(wsb.get_task("2").unwrap().get_planned_value(), 33.0);
 
         assert_eq!(wsb.remove("2"), None);
-        assert_eq!(wsb.get_planned_value(), 55.0);
+        assert_eq!(wsb.planned_value(), 55.0);
         assert_eq!(wsb.remove("2.1"), Some(Task::new(TaskId::new(vec![2,1]), "Create help menu")));
-        assert_eq!(wsb.get_planned_value(), 22.0);
+        assert_eq!(wsb.planned_value(), 22.0);
         assert_eq!(wsb.get_task("2").unwrap().get_planned_value(), 0.0);
         assert_eq!(wsb.remove("2"), Some(Task::new(TaskId::new(vec![2]), "Create CLI tool")));
-        assert_eq!(wsb.get_planned_value(), 22.0);
+        assert_eq!(wsb.planned_value(), 22.0);
 
         assert_eq!(wsb.get_task("1"), Some(&Task::new(TaskId::new(vec![1]), "Create WSB")));
         assert_eq!(wsb.get_task_mut("1"), Some(&mut Task::new(TaskId::new(vec![1]), "Create WSB")));

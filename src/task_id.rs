@@ -1,3 +1,5 @@
+use std::option::Iter;
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TaskId {
     id: Vec<u32>
@@ -49,6 +51,35 @@ impl TaskId {
             vec.push(child_index);
             TaskId::new(vec)
         }).collect::<Vec<TaskId>>()
+    }
+
+    pub fn path(&self) -> Vec<TaskId> {
+
+        let id_iter = self.id
+            .iter()
+            .enumerate()
+            .map(|(layer_idx, _)| {
+                let mut id_vec = self.id.clone();
+                id_vec.truncate(layer_idx + 1);
+                TaskId::new(id_vec)
+            });
+        std::iter::once(Self::get_root_id())
+            .chain(id_iter)
+            .collect::<Vec<TaskId>>()
+    }
+
+    pub fn new_child_id(&self, child_num: u32) -> TaskId {
+        let id_vec = self
+            .as_vec()
+            .iter()
+            .cloned()
+            .chain(std::iter::once(child_num))
+            .collect::<Vec<u32>>();
+        TaskId::new(id_vec)
+    }
+
+    pub fn get_root_id() -> TaskId {
+        TaskId::new(vec![])
     }
 }
 
