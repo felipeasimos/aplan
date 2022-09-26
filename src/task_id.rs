@@ -40,6 +40,16 @@ impl TaskId {
         let parent_vec = self.id[..vec_len-1].to_vec();
         Some(TaskId::new(parent_vec))
     }
+
+    pub fn child_ids(&self, num_childs: u32) -> Vec<TaskId> {
+
+        let id_vec = self.as_vec();
+        (1..num_childs+1).map(|child_index| {
+            let mut vec = id_vec.clone();
+            vec.push(child_index);
+            TaskId::new(vec)
+        }).collect::<Vec<TaskId>>()
+    }
 }
 
 impl ToString for TaskId {

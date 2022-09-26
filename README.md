@@ -8,13 +8,11 @@ It is also provided as a crate.
 
 ## Roadmap
 
-- [ ] Task store
-  - [ ] Uses id to uniquely identify tasks
-  - [ ] Control change to tasks (add, remove, update)
 - [ ] WSB manager
-  - [ ] Tree structure using `trees`
-  - [ ] inherent value analysis
-  - [ ] PV/AC
+  - [x] Store tasks with hashmap
+  - [x] Control change to tasks (add, remove, update)
+  - [x] inherent value analysis
+  - [x] PV/AC
   - [ ] SPI/PV/EV/SPI/SV/CPI/CV
   - [ ] Member management
   - [ ] Gantt
