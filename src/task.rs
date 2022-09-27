@@ -1,15 +1,35 @@
-use std::{ops::Range, option::Iter};
+use std::fmt::Display;
 
-use chrono::Utc;
+use serde::{Serialize, Deserialize};
 
 use crate::task_id::TaskId;
 
+#[derive(Serialize, Deserialize)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TaskStatus {
     InProgress,
     Done
 }
 
+impl Display for TaskStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TaskStatus::InProgress => write!(f, "InProgress"),
+            TaskStatus::Done => write!(f, "Done"),
+        }
+    }
+}
+
+impl TaskStatus {
+    fn to_icon(&self) -> &'static str {
+        match &self {
+            TaskStatus::InProgress => "✗",
+            TaskStatus::Done => "✔"
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
 #[derive(Clone, Debug)]
 pub struct Task {
     name: String,
@@ -73,11 +93,11 @@ impl Task {
     }
 }
 
-impl ToString for Task {
-    fn to_string(&self) -> String {
+impl Display for Task {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.id().as_vec().last() {
-            Some(_) => format!("{} - {}\npv: {}, ac: {}", self.id().to_string(), self.name(), self.planned_value, self.actual_cost),
-            None => format!("{}\npv: {}, ac: {}", self.name().to_string(), self.planned_value, self.actual_cost),
+            Some(_) => write!(f, "{} - {}\npv: {}, ac: {} {}", self.id().to_string(), self.name(), self.planned_value, self.actual_cost, self.status.to_icon()),
+            None => write!(f, "{}\npv: {}, ac: {} {}", self.name().to_string(), self.planned_value, self.actual_cost, self.status.to_icon()),
         }
     }
 }

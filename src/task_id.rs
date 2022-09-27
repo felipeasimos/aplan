@@ -1,5 +1,8 @@
-use std::option::Iter;
+use std::{option::Iter, fmt::Display};
 
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TaskId {
     id: Vec<u32>
@@ -83,13 +86,13 @@ impl TaskId {
     }
 }
 
-impl ToString for TaskId {
-    fn to_string(&self) -> String {
-        self.id
-            .iter()
-            .map(|n| n.to_string())
-            .collect::<Vec<String>>()
-            .join(".")
+impl Display for TaskId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.id
+               .iter()
+               .map(|n| n.to_string())
+               .collect::<Vec<String>>()
+               .join("."))
     }
 }
 

@@ -1,0 +1,14 @@
+digraph G {
+	"Project
+pv: 22, ac: 0" -> "1 - Create WSB
+pv: 2, ac: 0"
+	"1 - Create WSB
+pv: 2, ac: 0" -> "1.1 - Create Task struct
+pv: 2, ac: 0"
+	"Project
+pv: 22, ac: 0" -> "2 - Create GUI tool
+pv: 20, ac: 0"
+	"2 - Create GUI tool
+pv: 20, ac: 0" -> "2.1 - Create plot visualizer
+pv: 20, ac: 0"
+}

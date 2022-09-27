@@ -1,10 +1,62 @@
 use std::collections::HashMap;
 
+use serde::{Serialize, Deserialize, ser::SerializeMap, de::Visitor};
+use serde::de;
+
 use crate::{task::{Task, TaskStatus}, task_id::TaskId};
 
 #[derive(Debug)]
 pub struct WSB {
     tree: HashMap<TaskId, Task>,
+}
+
+impl Serialize for WSB {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+        
+            let mut map = serializer.serialize_map(Some(self.tree.len()))?;
+            for (k, v) in &self.tree {
+                map.serialize_entry(&k.to_string(), &v)?;
+            }
+            map.end()
+    }
+}
+
+struct WSBVisitor;
+
+impl<'de> Visitor<'de> for WSBVisitor {
+    type Value = WSB;
+
+    fn expecting(&self, formatter: &mut serde::__private::fmt::Formatter) -> serde::__private::fmt::Result {
+        formatter.write_str("HashMap with TaskId as key and Task as value")
+    }
+
+    fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+    where
+        M: de::MapAccess<'de>,
+    {
+        let mut map : HashMap<TaskId, Task> = HashMap::with_capacity(access.size_hint().unwrap_or(0));
+
+        while let Some((key, value)) = access.next_entry()? {
+            let task_id = TaskId::parse(key).unwrap();
+            map.insert(task_id, value);
+        }
+        let root_task = map.get(&TaskId::get_root_id()).unwrap();
+        let mut wsb = WSB::new(root_task.name());
+        wsb.tree = map;
+
+        Ok(wsb)
+    }
+}
+
+impl<'de> Deserialize<'de> for WSB {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+
+        deserializer.deserialize_map(WSBVisitor {})
+    }
 }
 
 impl WSB {
@@ -178,7 +230,7 @@ impl WSB {
             let diff = actual_cost - old_actual_cost;
 
                 self.apply_along_path(&parent_id, |mut task| {
-                    task.planned_value += diff;
+                    task.actual_cost += diff;
                 });
         }
 
@@ -263,6 +315,8 @@ impl WSB {
 
 #[cfg(test)]
 mod tests {
+
+    use std::io::Write;
     use super::*;
 
     #[test]
@@ -343,6 +397,6 @@ mod tests {
 
         assert_eq!(wsb.get_task("2.1"), Some(&Task::new(TaskId::new(vec![2,1]), "Create plot visualizer")));
         assert_eq!(wsb.get_task_mut("2.1"), Some(&mut Task::new(TaskId::new(vec![2,1]), "Create plot visualizer")));
-        // write!(std::fs::File::create("test").unwrap(), "{}", wsb.to_dot_str());
+        write!(std::fs::File::create("test").unwrap(), "{}", wsb.to_dot_str());
     }
 }
