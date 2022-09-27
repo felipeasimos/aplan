@@ -1,8 +1,10 @@
+pub mod task_id;
+
 use std::fmt::Display;
 
 use serde::{Serialize, Deserialize};
 
-use crate::task_id::TaskId;
+use self::task_id::TaskId;
 
 #[derive(Serialize, Deserialize)]
 #[derive(Clone, Debug, PartialEq, Eq)]

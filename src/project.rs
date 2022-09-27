@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::wsb::WSB;
+use crate::subsystem::wsb::WSB;
 
 #[derive(Serialize, Deserialize)]
 pub struct Project {

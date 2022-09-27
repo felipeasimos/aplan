@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use serde::{Serialize, Deserialize, ser::SerializeMap, de::Visitor};
 use serde::de;
 
-use crate::{task::{Task, TaskStatus}, task_id::TaskId};
+use crate::task::{Task, TaskStatus};
+use crate::task::task_id::TaskId;
 
 #[derive(Debug)]
 pub struct WSB {
