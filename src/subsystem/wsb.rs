@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::Write;
 
 use serde::{Serialize, Deserialize, ser::SerializeMap, de::Visitor};
 use serde::de;
@@ -69,6 +70,10 @@ impl WSB {
         Self {
             tree: map,
         }
+    }
+
+    pub fn name(&self) -> &str {
+        self.tree.get(&TaskId::get_root_id()).unwrap().name()
     }
 
     pub fn planned_value(&self) -> f64 {
@@ -312,12 +317,15 @@ impl WSB {
             .filter(|task| task.is_leaf() && task.status == TaskStatus::Done)
             .collect::<Vec<&Task>>()
     }
+
+    pub fn to_dot_file(&self, filename: &str) {
+        write!(std::fs::File::create(filename).unwrap(), "{}", self.to_dot_str()).unwrap();
+    }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use std::io::Write;
     use super::*;
 
     #[test]
@@ -398,6 +406,5 @@ mod tests {
 
         assert_eq!(wsb.get_task("2.1"), Some(&Task::new(TaskId::new(vec![2,1]), "Create plot visualizer")));
         assert_eq!(wsb.get_task_mut("2.1"), Some(&mut Task::new(TaskId::new(vec![2,1]), "Create plot visualizer")));
-        write!(std::fs::File::create("test").unwrap(), "{}", wsb.to_dot_str());
     }
 }
