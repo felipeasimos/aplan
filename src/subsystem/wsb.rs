@@ -108,26 +108,24 @@ impl WSB {
         self.earned_value() - self.actual_cost()
     }
 
-    pub fn get_task(&self, id: &str) -> Option<&Task> {
-        let task_id = TaskId::parse(id)?;
+    pub fn get_task(&self, task_id: &TaskId) -> Option<&Task> {
         self.tree.get(&task_id)
     }
 
-    pub fn get_task_mut(&mut self, id: &str) -> Option<&mut Task> {
-        let task_id = TaskId::parse(id)?;
+    pub fn get_task_mut(&mut self, task_id: &TaskId) -> Option<&mut Task> {
         self.tree.get_mut(&task_id)
     }
 
-    pub fn add_task(&mut self, parent_id: &str, name: &str) -> Option<&mut Task> {
+    pub fn add_task(&mut self, mut parent_task_id: TaskId, name: &str) -> Option<&mut Task> {
         // get parent
-        let parent_task_id = TaskId::parse(parent_id)?;
         let parent_task = self.tree.get_mut(&parent_task_id)?;
 
         // increase number of children
         parent_task.num_child += 1;
 
         // get new task id
-        let task_id = parent_task_id.new_child_id(parent_task.num_child);
+        parent_task_id.as_vec_mut().push(parent_task.num_child);
+        let task_id = parent_task_id;
 
         // create task
         let task = Task::new(task_id.clone(), name);
@@ -140,7 +138,7 @@ impl WSB {
 
     pub fn expand<const N: usize>(&mut self, arr: &[(&str, &str); N]) -> Option<&mut Self> {
         for (parent_id, task_name) in arr {
-            self.add_task(parent_id, task_name)?;
+            self.add_task(TaskId::parse(parent_id).unwrap(), task_name)?;
         }
         Some(self)
     }
@@ -156,7 +154,7 @@ impl WSB {
             })
     }
 
-    pub fn subtract_id(&mut self, child_id: &TaskId, layer_idx: usize) {
+    fn subtract_id(&mut self, child_id: &TaskId, layer_idx: usize) {
         let num_child = self.tree.get(child_id).unwrap().num_child;
         let old_task_id = child_id.clone();
         let mut new_task_id = child_id.clone();
@@ -173,10 +171,9 @@ impl WSB {
         })
     }
 
-    pub fn remove(&mut self, id: &str) -> Option<Task> {
-        let mut task_id = TaskId::parse(id)?;
-
+    pub fn remove(&mut self, task_id: &TaskId) -> Option<Task> {
         // don't remove if this is a trunk node
+        let mut task_id = task_id.clone();
         if self.tree.get(&task_id)?.num_child > 0 {
             return None;
         }
@@ -211,8 +208,8 @@ impl WSB {
 
     fn remove_task_stats_from_tree(&mut self, task_id: &TaskId) {
 
-        self.set_actual_cost(&task_id.to_string(), 0.0);
-        self.set_planned_value(&task_id.to_string(), 0.0);
+        self.set_actual_cost(&task_id, 0.0);
+        self.set_planned_value(&task_id, 0.0);
     }
 
     fn children_are_done(&self, task_id: &TaskId) -> bool {
@@ -223,8 +220,7 @@ impl WSB {
             .is_none()
     }
 
-    pub fn set_actual_cost(&mut self, id: &str, actual_cost: f64) -> Option<()> {
-        let task_id = TaskId::parse(id)?;
+    pub fn set_actual_cost(&mut self, task_id: &TaskId, actual_cost: f64) -> Option<()> {
         let parent_id = task_id.parent()?;
         {
             let mut task = self.tree.get_mut(&task_id)?;
@@ -254,8 +250,7 @@ impl WSB {
         Some(())
     }
 
-    pub fn set_planned_value(&mut self, id: &str, planned_value: f64) -> Option<()> {
-        let task_id = TaskId::parse(id)?;
+    pub fn set_planned_value(&mut self, task_id: &TaskId, planned_value: f64) -> Option<()> {
         let parent_id = task_id.parent()?;
         let mut task = self.tree.get_mut(&task_id)?;
         // can't set actual cost of trunk node
@@ -332,9 +327,18 @@ mod tests {
     fn tasks() {
         let mut wsb = WSB::new("Project");
 
-        assert!(wsb.add_task("1", "Create WSB").is_none());
-        assert_eq!(wsb.add_task("", "Create WSB"), Some(&mut Task::new(TaskId::new(vec![1]), "Create WSB")));
-        assert_eq!(wsb.add_task("1", "Create Task struct"), Some(&mut Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
+        let root = TaskId::get_root_id();
+        let task_id_1 = TaskId::new(vec![1]);
+        let task_id_2 = TaskId::new(vec![2]);
+        let task_id_3 = TaskId::new(vec![3]);
+        let task_id_1_1 = TaskId::new(vec![1, 1]);
+        let task_id_2_1 = TaskId::new(vec![2, 1]);
+        let task_id_2_2 = TaskId::new(vec![2, 2]);
+        let task_id_3_1 = TaskId::new(vec![3, 1]);
+
+        assert!(wsb.add_task(task_id_1.clone(), "Create WSB").is_none());
+        assert_eq!(wsb.add_task(root.clone(), "Create WSB"), Some(&mut Task::new(TaskId::new(vec![1]), "Create WSB")));
+        assert_eq!(wsb.add_task(task_id_1.clone(), "Create Task struct"), Some(&mut Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
         wsb.expand(&[
             ("", "Create CLI tool"),
                 ("2", "Create argument parser"),
@@ -342,69 +346,69 @@ mod tests {
             ("", "Create GUI tool"),
                 ("3", "Create plot visualizer")
         ]);
-        assert_eq!(wsb.get_task("1"), Some(&Task::new(TaskId::new(vec![1]), "Create WSB")));
-        assert_eq!(wsb.get_task_mut("1"), Some(&mut Task::new(TaskId::new(vec![1]), "Create WSB")));
+        assert_eq!(wsb.get_task(&task_id_1), Some(&Task::new(TaskId::new(vec![1]), "Create WSB")));
+        assert_eq!(wsb.get_task_mut(&task_id_1), Some(&mut Task::new(TaskId::new(vec![1]), "Create WSB")));
 
-        assert_eq!(wsb.get_task("1.1"), Some(&Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
-        assert_eq!(wsb.get_task_mut("1.1"), Some(&mut Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
-        assert_eq!(wsb.set_planned_value("1.1", 2.0), Some(()));
+        assert_eq!(wsb.get_task(&task_id_1_1), Some(&Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
+        assert_eq!(wsb.get_task_mut(&task_id_1_1), Some(&mut Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
+        assert_eq!(wsb.set_planned_value(&task_id_1_1, 2.0), Some(()));
         assert_eq!(wsb.planned_value(), 2.0);
-        assert_eq!(wsb.get_task("1.1").unwrap().get_planned_value(), 2.0);
-        assert_eq!(wsb.get_task("1").unwrap().get_planned_value(), 2.0);
+        assert_eq!(wsb.get_task(&task_id_1_1).unwrap().get_planned_value(), 2.0);
+        assert_eq!(wsb.get_task(&task_id_1).unwrap().get_planned_value(), 2.0);
 
-        assert_eq!(wsb.get_task("2"), Some(&Task::new(TaskId::new(vec![2]), "Create CLI tool")));
-        assert_eq!(wsb.get_task_mut("2"), Some(&mut Task::new(TaskId::new(vec![2]), "Create CLI tool")));
+        assert_eq!(wsb.get_task(&task_id_2), Some(&Task::new(TaskId::new(vec![2]), "Create CLI tool")));
+        assert_eq!(wsb.get_task_mut(&task_id_2), Some(&mut Task::new(TaskId::new(vec![2]), "Create CLI tool")));
 
-        assert_eq!(wsb.get_task("2.1"), Some(&Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
-        assert_eq!(wsb.get_task_mut("2.1"), Some(&mut Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
-        assert_eq!(wsb.set_planned_value("2.1", 7.0), Some(()));
+        assert_eq!(wsb.get_task(&task_id_2_1), Some(&Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
+        assert_eq!(wsb.get_task_mut(&task_id_2_1), Some(&mut Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
+        assert_eq!(wsb.set_planned_value(&task_id_2_1, 7.0), Some(()));
         assert_eq!(wsb.planned_value(), 9.0);
-        assert_eq!(wsb.get_task("2.1").unwrap().get_planned_value(), 7.0);
-        assert_eq!(wsb.get_task("2.2").unwrap().get_planned_value(), 0.0);
-        assert_eq!(wsb.get_task("2").unwrap().get_planned_value(), 7.0);
+        assert_eq!(wsb.get_task(&task_id_2_1).unwrap().get_planned_value(), 7.0);
+        assert_eq!(wsb.get_task(&task_id_2_2).unwrap().get_planned_value(), 0.0);
+        assert_eq!(wsb.get_task(&task_id_2).unwrap().get_planned_value(), 7.0);
 
-        assert_eq!(wsb.get_task("2.2"), Some(&Task::new(TaskId::new(vec![2,2]), "Create help menu")));
-        assert_eq!(wsb.get_task_mut("2.2"), Some(&mut Task::new(TaskId::new(vec![2,2]), "Create help menu")));
-        assert_eq!(wsb.set_planned_value("2.2", 33.0), Some(()));
+        assert_eq!(wsb.get_task(&task_id_2_2), Some(&Task::new(TaskId::new(vec![2,2]), "Create help menu")));
+        assert_eq!(wsb.get_task_mut(&task_id_2_2), Some(&mut Task::new(TaskId::new(vec![2,2]), "Create help menu")));
+        assert_eq!(wsb.set_planned_value(&task_id_2_2, 33.0), Some(()));
         assert_eq!(wsb.planned_value(), 42.0);
-        assert_eq!(wsb.get_task("2.1").unwrap().get_planned_value(), 7.0);
-        assert_eq!(wsb.get_task("2.2").unwrap().get_planned_value(), 33.0);
-        assert_eq!(wsb.get_task("2").unwrap().get_planned_value(), 40.0);
+        assert_eq!(wsb.get_task(&task_id_2_1).unwrap().get_planned_value(), 7.0);
+        assert_eq!(wsb.get_task(&task_id_2_2).unwrap().get_planned_value(), 33.0);
+        assert_eq!(wsb.get_task(&task_id_2).unwrap().get_planned_value(), 40.0);
 
-        assert_eq!(wsb.get_task("3"), Some(&Task::new(TaskId::new(vec![3]), "Create GUI tool")));
-        assert_eq!(wsb.get_task_mut("3"), Some(&mut Task::new(TaskId::new(vec![3]), "Create GUI tool")));
+        assert_eq!(wsb.get_task(&task_id_3), Some(&Task::new(TaskId::new(vec![3]), "Create GUI tool")));
+        assert_eq!(wsb.get_task_mut(&task_id_3), Some(&mut Task::new(TaskId::new(vec![3]), "Create GUI tool")));
 
-        assert_eq!(wsb.get_task("3.1"), Some(&Task::new(TaskId::new(vec![3,1]), "Create plot visualizer")));
-        assert_eq!(wsb.get_task_mut("3.1"), Some(&mut Task::new(TaskId::new(vec![3,1]), "Create plot visualizer")));
-        assert_eq!(wsb.set_planned_value("3.1", 20.0), Some(()));
+        assert_eq!(wsb.get_task(&task_id_3_1), Some(&Task::new(TaskId::new(vec![3,1]), "Create plot visualizer")));
+        assert_eq!(wsb.get_task_mut(&task_id_3_1), Some(&mut Task::new(TaskId::new(vec![3,1]), "Create plot visualizer")));
+        assert_eq!(wsb.set_planned_value(&task_id_3_1, 20.0), Some(()));
         assert_eq!(wsb.planned_value(), 62.0);
-        assert_eq!(wsb.get_task("3.1").unwrap().get_planned_value(), 20.0);
-        assert_eq!(wsb.get_task("3").unwrap().get_planned_value(), 20.0);
-        assert_eq!(wsb.remove("2.1"), Some(Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
+        assert_eq!(wsb.get_task(&task_id_3_1).unwrap().get_planned_value(), 20.0);
+        assert_eq!(wsb.get_task(&task_id_3).unwrap().get_planned_value(), 20.0);
+        assert_eq!(wsb.remove(&task_id_2_1), Some(Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
 
         assert_eq!(wsb.planned_value(), 55.0);
-        assert_eq!(wsb.get_task("2.1"), Some(&Task::new(TaskId::new(vec![2, 1]), "Create help menu")));
-        assert_eq!(wsb.get_task("2"), Some(&Task::new(TaskId::new(vec![2]), "Create CLI tool")));
-        assert_eq!(wsb.get_task("2").unwrap().get_planned_value(), 33.0);
+        assert_eq!(wsb.get_task(&task_id_2_1), Some(&Task::new(TaskId::new(vec![2, 1]), "Create help menu")));
+        assert_eq!(wsb.get_task(&task_id_2), Some(&Task::new(TaskId::new(vec![2]), "Create CLI tool")));
+        assert_eq!(wsb.get_task(&task_id_2).unwrap().get_planned_value(), 33.0);
 
-        assert_eq!(wsb.remove("2"), None);
+        assert_eq!(wsb.remove(&task_id_2), None);
         assert_eq!(wsb.planned_value(), 55.0);
-        assert_eq!(wsb.remove("2.1"), Some(Task::new(TaskId::new(vec![2,1]), "Create help menu")));
+        assert_eq!(wsb.remove(&task_id_2_1), Some(Task::new(TaskId::new(vec![2,1]), "Create help menu")));
         assert_eq!(wsb.planned_value(), 22.0);
-        assert_eq!(wsb.get_task("2").unwrap().get_planned_value(), 0.0);
-        assert_eq!(wsb.remove("2"), Some(Task::new(TaskId::new(vec![2]), "Create CLI tool")));
+        assert_eq!(wsb.get_task(&task_id_2).unwrap().get_planned_value(), 0.0);
+        assert_eq!(wsb.remove(&task_id_2), Some(Task::new(TaskId::new(vec![2]), "Create CLI tool")));
         assert_eq!(wsb.planned_value(), 22.0);
 
-        assert_eq!(wsb.get_task("1"), Some(&Task::new(TaskId::new(vec![1]), "Create WSB")));
-        assert_eq!(wsb.get_task_mut("1"), Some(&mut Task::new(TaskId::new(vec![1]), "Create WSB")));
+        assert_eq!(wsb.get_task(&task_id_1), Some(&Task::new(TaskId::new(vec![1]), "Create WSB")));
+        assert_eq!(wsb.get_task_mut(&task_id_1), Some(&mut Task::new(TaskId::new(vec![1]), "Create WSB")));
 
-        assert_eq!(wsb.get_task("1.1"), Some(&Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
-        assert_eq!(wsb.get_task_mut("1.1"), Some(&mut Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
+        assert_eq!(wsb.get_task(&task_id_1_1), Some(&Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
+        assert_eq!(wsb.get_task_mut(&task_id_1_1), Some(&mut Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
 
-        assert_eq!(wsb.get_task("2"), Some(&Task::new(TaskId::new(vec![2]), "Create GUI tool")));
-        assert_eq!(wsb.get_task_mut("2"), Some(&mut Task::new(TaskId::new(vec![2]), "Create GUI tool")));
+        assert_eq!(wsb.get_task(&task_id_2), Some(&Task::new(TaskId::new(vec![2]), "Create GUI tool")));
+        assert_eq!(wsb.get_task_mut(&task_id_2), Some(&mut Task::new(TaskId::new(vec![2]), "Create GUI tool")));
 
-        assert_eq!(wsb.get_task("2.1"), Some(&Task::new(TaskId::new(vec![2,1]), "Create plot visualizer")));
-        assert_eq!(wsb.get_task_mut("2.1"), Some(&mut Task::new(TaskId::new(vec![2,1]), "Create plot visualizer")));
+        assert_eq!(wsb.get_task(&task_id_2_1), Some(&Task::new(TaskId::new(vec![2,1]), "Create plot visualizer")));
+        assert_eq!(wsb.get_task_mut(&task_id_2_1), Some(&mut Task::new(TaskId::new(vec![2,1]), "Create plot visualizer")));
     }
 }

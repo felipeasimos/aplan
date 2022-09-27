@@ -75,5 +75,50 @@ impl Project {
 
 #[cfg(test)]
 mod tests {
+    use crate::{builder::project_execution::ProjectExecution, task::{task_id::TaskId, Task}};
 
+
+    #[test]
+    fn builder_pattern() {
+        let project = ProjectExecution::new("test")
+            .wsb(|wsb| {
+                wsb.expand(&[
+                    ("", "Create WSB"),
+                        ("1", "Create Task Tree"),
+                        ("1", "CRUD"),
+                            ("1.2", "Manage ac and pv"),
+                    ("", "Create Burndown"),
+                        ("2", "Plot graph"),
+                        ("2", "Create story backlog")
+                ])
+                .value(&TaskId::new(vec![1, 2, 1]), 5.6)
+                .done(&TaskId::new(vec![1, 1]), 0.4)
+                .add(&TaskId::new(vec![]), "Create Web Interface");
+            })
+            .save()
+            .run();
+        // structure
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1])), Some(&Task::new(TaskId::new(vec![1]), "Create WSB")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 1])), Some(&Task::new(TaskId::new(vec![1, 1]), "Create Task Tree")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2])), Some(&Task::new(TaskId::new(vec![1, 2]), "CRUD")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1])), Some(&Task::new(TaskId::new(vec![1, 2, 1]), "Manage ac and pv")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2])), Some(&Task::new(TaskId::new(vec![2]), "Create Burndown")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2, 1])), Some(&Task::new(TaskId::new(vec![2, 1]), "Plot graph")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2, 2])), Some(&Task::new(TaskId::new(vec![2, 2]), "Create story backlog")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![3])), Some(&Task::new(TaskId::new(vec![3]), "Create Web Interface")));
+
+        // value
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1])).unwrap().get_planned_value(), 5.6);
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2])).unwrap().get_planned_value(), 5.6);
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1])).unwrap().get_planned_value(), 5.6);
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 1])).unwrap().get_planned_value(), 0.0);
+
+        // actual cost
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 1])).unwrap().get_actual_cost(), 0.4);
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1])).unwrap().get_actual_cost(), 0.4);
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1])).unwrap().get_actual_cost(), 0.0);
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2])).unwrap().get_actual_cost(), 0.0);
+
+
+    }
 }

@@ -7,7 +7,7 @@ use aplan::{project::Project, builder::project_execution::ProjectExecution, task
 struct Cli {
     /// Name of the project to operate on
     #[clap(short, long, value_parser, default_value = "aplan")]
-    name: String,
+    project: String,
 
     #[clap(subcommand)]
     command: Commands
@@ -27,9 +27,6 @@ enum Commands {
     },
     /// Create project file
     Init {
-        /// Project name
-        #[clap(short, long, value_parser, default_value = "aplan")]
-        name: String
     }
 }
 
@@ -57,46 +54,56 @@ enum WSBCommands {
         #[clap(short, long, value_parser)]
         id: String,
         /// Cost it took to complete task
-        #[clap(short, long, value_parser)]
+        #[clap(value_parser)]
         cost: f64
+    },
+    /// Set value of a task
+    Value {
+        /// Task id
+        #[clap(short, long, value_parser)]
+        id: String,
+        /// Value of the task
+        #[clap(value_parser)]
+        value: f64
     }
 }
 
 fn process_args(cli: Cli) -> Option<()>  {
-    if let Commands::Init { name } = cli.command {
-        let project = Project::new(&name);
-        project.save();
-        return Some(());
-    }
-    let mut project_execution = ProjectExecution::load(&cli.name).unwrap();
 
-    project_execution = match &cli.command {
+    match &cli.command {
         Commands::Burndown {  } => todo!(),
         Commands::WSB { command } => match command {
             WSBCommands::Show { output } => {
-                project_execution
+                ProjectExecution::load(&cli.project).unwrap()
                     .wsb(|wsb| {
                         wsb.show(output);
                     })
             },
             WSBCommands::Add { parent, name } => {
-                project_execution
+                ProjectExecution::load(&cli.project).unwrap()
                     .wsb(|wsb| {
                         wsb.add(&TaskId::parse(&parent).unwrap(), name);
                     })
             },
             WSBCommands::Done { id, cost } => {
-                project_execution
+                ProjectExecution::load(&cli.project).unwrap()
                     .wsb(|wsb| {
                         wsb.done(&TaskId::parse(&id).unwrap(), *cost);
                     })
             },
+            WSBCommands::Value { id, value } => {
+                ProjectExecution::load(&cli.project).unwrap()
+                    .wsb(|wsb| {
+                        wsb.value(&TaskId::parse(&id).unwrap(), *value);
+                    })
+            }
         },
-        Commands::Init { .. } => project_execution,
-    };
-    project_execution
-        .save()
-        .run();
+        Commands::Init { .. } => {
+            ProjectExecution::new(&cli.project)
+        },
+    }
+    .save()
+    .run();
     Some(())
 }
 

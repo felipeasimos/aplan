@@ -106,8 +106,6 @@ impl Display for Task {
 
 #[cfg(test)]
 mod tests {
-    use crate::task_id::*;
-
     use super::*;
 
     #[test]

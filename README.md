@@ -13,7 +13,7 @@ It is also provided as a crate.
   - [x] Control change to tasks (add, remove, update)
   - [x] inherent value analysis
   - [x] PV/AC
-  - [ ] SPI/PV/EV/SPI/SV/CPI/CV
+  - [x] SPI/PV/EV/SPI/SV/CPI/CV
   - [ ] Member management
   - [ ] Gantt
 - [ ] Burndown Manager

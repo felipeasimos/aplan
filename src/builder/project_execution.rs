@@ -43,7 +43,7 @@ impl ProjectExecution {
         self
     }
 
-    pub fn run(mut self) {
+    pub fn run(mut self) -> Project {
         self.actions
             .into_iter()
             .for_each(|action| match action {
@@ -51,5 +51,6 @@ impl ProjectExecution {
                 ProjectAction::SaveTo(filename) => { self.project.save_to(&filename).unwrap(); },
                 ProjectAction::RunWSBBuilder(wsb_execution) => { wsb_execution.run(self.project.wsb()); }, 
             });
+        self.project
     }
 }
