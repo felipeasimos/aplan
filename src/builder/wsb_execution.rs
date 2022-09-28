@@ -1,9 +1,10 @@
-use crate::{task::task_id::TaskId, subsystem::wsb::WSB};
+use crate::{task::task_id::TaskId, subsystem::wsb::WSB, project::Project};
 
 #[derive(Debug)]
 enum WSBAction {
     Show(String),
     Add(TaskId, String),
+    Remove(TaskId),
     Value(TaskId, f64),
     Done(TaskId, f64)
 }
@@ -32,6 +33,11 @@ impl WSBExecution {
         self
     }
 
+    pub fn remove(&mut self, id: &TaskId) -> &mut Self {
+        self.actions.push(WSBAction::Remove(id.clone()));
+        self
+    }
+
     pub fn expand<const N: usize>(&mut self, arr: &[(&str, &str); N]) -> &mut Self {
         for (parent_id, task_name) in arr {
             self.add(&TaskId::parse(parent_id).unwrap(), task_name);
@@ -49,14 +55,15 @@ impl WSBExecution {
         self
     }
 
-    pub(crate) fn run(self, wsb: &mut WSB) {
+    pub(crate) fn run(self, project: &mut Project) {
         self.actions
             .into_iter()
             .for_each(|action| match action {
-                WSBAction::Show(filename) => { wsb.to_dot_file(&filename); },
-                WSBAction::Add(parent_id, name) => { wsb.add_task(parent_id, &name).unwrap(); },
-                WSBAction::Done(id, cost) => { wsb.set_actual_cost(&id, cost).unwrap(); },
-                WSBAction::Value(id, value) => { wsb.set_planned_value(&id, value).unwrap(); },
+                WSBAction::Show(filename) => { project.wsb.to_dot_file(&filename, &mut project.tasks); },
+                WSBAction::Add(parent_id, name) => { project.wsb.add_task(parent_id, &name, &mut project.tasks).unwrap(); },
+                WSBAction::Remove(id) => { project.wsb.remove(&id, &mut project.tasks).unwrap(); },
+                WSBAction::Done(id, cost) => { project.wsb.set_actual_cost(&id, cost, &mut project.tasks).unwrap(); },
+                WSBAction::Value(id, value) => { project.wsb.set_planned_value(&id, value, &mut project.tasks).unwrap(); },
             });
     }
 }

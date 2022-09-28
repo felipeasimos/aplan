@@ -9,7 +9,6 @@ enum ProjectAction {
     RunWSBBuilder(WSBExecution),
 }
 
-#[derive(Debug)]
 pub struct ProjectExecution {
     actions: Vec<ProjectAction>,
     project: Project
@@ -43,14 +42,13 @@ impl ProjectExecution {
         self
     }
 
-    pub fn run(mut self) -> Project {
+    pub fn run(mut self) {
         self.actions
             .into_iter()
             .for_each(|action| match action {
                 ProjectAction::Save => { self.project.save().unwrap(); },
                 ProjectAction::SaveTo(filename) => { self.project.save_to(&filename).unwrap(); },
-                ProjectAction::RunWSBBuilder(wsb_execution) => { wsb_execution.run(self.project.wsb()); }, 
+                ProjectAction::RunWSBBuilder(wsb_execution) => { wsb_execution.run(&mut self.project); }, 
             });
-        self.project
     }
 }

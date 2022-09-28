@@ -1,22 +1,72 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr, collections::HashMap};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::{Visitor, self}, ser::SerializeMap};
 
 use std::io::Write;
 
-use crate::subsystem::wsb::WSB;
+use crate::{subsystem::wsb::WSB, task::{Task, task_id::TaskId}};
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Project {
+pub(crate) struct Project {
 
-    wsb: WSB,
+    pub(crate) wsb: WSB,
+    pub(crate) tasks: HashMap<TaskId, Task>
     // burndown: Burndown
 }
 
+impl Serialize for Project {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+        
+            let mut map = serializer.serialize_map(Some(self.tasks.len()))?;
+            for (k, v) in &self.tasks {
+                map.serialize_entry(&k.to_string(), &v)?;
+            }
+            map.end()
+    }
+}
+
+struct ProjectVisitor;
+
+impl<'de> Visitor<'de> for ProjectVisitor {
+    type Value = Project;
+
+    fn expecting(&self, formatter: &mut serde::__private::fmt::Formatter) -> serde::__private::fmt::Result {
+        formatter.write_str("HashMap with TaskId as key and Task as value")
+    }
+
+    fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+    where
+        M: de::MapAccess<'de>,
+    {
+        let mut map : HashMap<TaskId, Task> = HashMap::with_capacity(access.size_hint().unwrap_or(0));
+
+        while let Some((key, value)) = access.next_entry()? {
+            let task_id = TaskId::parse(key).unwrap();
+            map.insert(task_id, value);
+        }
+
+        Ok(Project {
+            wsb: WSB {},
+            tasks: map
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for Project {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+
+        deserializer.deserialize_map(ProjectVisitor {})
+    }
+}
 impl Project {
     pub fn new(name: &str) -> Self {
+        let mut map = HashMap::new();
         Self {
-            wsb: WSB::new(name)
+            wsb: WSB::new(name, &mut map),
+            tasks: map
         }
     }
 
@@ -25,7 +75,7 @@ impl Project {
     }
 
     pub fn name(&self) -> &str {
-        self.wsb.name()
+        self.wsb.name(&self.tasks)
     }
 
     pub fn load(name: &str) -> Option<Self> {
@@ -98,26 +148,26 @@ mod tests {
             .save()
             .run();
         // structure
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1])), Some(&Task::new(TaskId::new(vec![1]), "Create WSB")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 1])), Some(&Task::new(TaskId::new(vec![1, 1]), "Create Task Tree")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2])), Some(&Task::new(TaskId::new(vec![1, 2]), "CRUD")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1])), Some(&Task::new(TaskId::new(vec![1, 2, 1]), "Manage ac and pv")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2])), Some(&Task::new(TaskId::new(vec![2]), "Create Burndown")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2, 1])), Some(&Task::new(TaskId::new(vec![2, 1]), "Plot graph")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2, 2])), Some(&Task::new(TaskId::new(vec![2, 2]), "Create story backlog")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![3])), Some(&Task::new(TaskId::new(vec![3]), "Create Web Interface")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1]), &project.tasks), Some(&Task::new(TaskId::new(vec![1]), "Create WSB")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 1]), &project.tasks), Some(&Task::new(TaskId::new(vec![1, 1]), "Create Task Tree")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2]), &project.tasks), Some(&Task::new(TaskId::new(vec![1, 2]), "CRUD")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1]), &project.tasks), Some(&Task::new(TaskId::new(vec![1, 2, 1]), "Manage ac and pv")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2]), &project.tasks), Some(&Task::new(TaskId::new(vec![2]), "Create Burndown")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2, 1]), &project.tasks), Some(&Task::new(TaskId::new(vec![2, 1]), "Plot graph")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2, 2]), &project.tasks), Some(&Task::new(TaskId::new(vec![2, 2]), "Create story backlog")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![3]), &project.tasks), Some(&Task::new(TaskId::new(vec![3]), "Create Web Interface")));
 
         // value
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1])).unwrap().get_planned_value(), 5.6);
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2])).unwrap().get_planned_value(), 5.6);
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1])).unwrap().get_planned_value(), 5.6);
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 1])).unwrap().get_planned_value(), 0.0);
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1]), &project.tasks).unwrap().get_planned_value(), 5.6);
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2]), &project.tasks).unwrap().get_planned_value(), 5.6);
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1]), &project.tasks).unwrap().get_planned_value(), 5.6);
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 1]), &project.tasks).unwrap().get_planned_value(), 0.0);
 
         // actual cost
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 1])).unwrap().get_actual_cost(), 0.4);
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1])).unwrap().get_actual_cost(), 0.4);
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1])).unwrap().get_actual_cost(), 0.0);
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2])).unwrap().get_actual_cost(), 0.0);
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 1]), &project.tasks).unwrap().get_actual_cost(), 0.4);
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1]), &project.tasks).unwrap().get_actual_cost(), 0.4);
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1]), &project.tasks).unwrap().get_actual_cost(), 0.0);
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2]), &project.tasks).unwrap().get_actual_cost(), 0.0);
 
 
     }

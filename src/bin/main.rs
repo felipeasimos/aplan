@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use aplan::{project::Project, builder::project_execution::ProjectExecution, task::task_id::TaskId};
+use aplan::{builder::project_execution::ProjectExecution, task::task_id::TaskId};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -48,6 +48,12 @@ enum WSBCommands {
         #[clap(short, long, value_parser)]
         name: String
     },
+    /// Remove task from WSB
+    Remove {
+        /// Id to the task to remove
+        #[clap(short, long, value_parser)]
+        id: String,
+    },
     /// Mark a task as done
     Done {
         /// Task id
@@ -83,6 +89,12 @@ fn process_args(cli: Cli) -> Option<()>  {
                 ProjectExecution::load(&cli.project).unwrap()
                     .wsb(|wsb| {
                         wsb.add(&TaskId::parse(&parent).unwrap(), name);
+                    })
+            },
+            WSBCommands::Remove { id } => {
+                ProjectExecution::load(&cli.project).unwrap()
+                    .wsb(|wsb| {
+                        wsb.remove(&TaskId::parse(&id).unwrap());
                     })
             },
             WSBCommands::Done { id, cost } => {
