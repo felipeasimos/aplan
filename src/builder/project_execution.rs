@@ -1,4 +1,4 @@
-use crate::project::Project;
+use crate::{project::Project, task::Task};
 
 use super::wsb_execution::WSBExecution;
 
@@ -7,6 +7,10 @@ enum ProjectAction {
     Save,
     SaveTo(String),
     RunWSBBuilder(WSBExecution),
+}
+
+pub enum Return {
+    Task(Task)
 }
 
 pub struct ProjectExecution {
@@ -42,13 +46,15 @@ impl ProjectExecution {
         self
     }
 
-    pub fn run(mut self) {
+    pub fn run(mut self) -> Vec<Return> {
+        let mut results : Vec<Return> = Vec::new();
         self.actions
             .into_iter()
             .for_each(|action| match action {
                 ProjectAction::Save => { self.project.save().unwrap(); },
                 ProjectAction::SaveTo(filename) => { self.project.save_to(&filename).unwrap(); },
-                ProjectAction::RunWSBBuilder(wsb_execution) => { wsb_execution.run(&mut self.project); }, 
+                ProjectAction::RunWSBBuilder(wsb_execution) => { results.append(&mut wsb_execution.run(&mut self.project)); }, 
             });
+        results
     }
 }

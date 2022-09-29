@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use aplan::{builder::project_execution::ProjectExecution, task::task_id::TaskId};
+use aplan::{builder::project_execution::{ProjectExecution, Return}, task::task_id::TaskId};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -71,6 +71,12 @@ enum WSBCommands {
         /// Value of the task
         #[clap(value_parser)]
         value: f64
+    },
+    /// Get info about a task
+    GetTask {
+        /// Task id
+        #[clap(short, long, value_parser)]
+        id: String
     }
 }
 
@@ -108,6 +114,12 @@ fn process_args(cli: Cli) -> Option<()>  {
                     .wsb(|wsb| {
                         wsb.value(&TaskId::parse(&id).unwrap(), *value);
                     })
+            },
+            WSBCommands::GetTask { id } => {
+                ProjectExecution::load(&cli.project).unwrap()
+                    .wsb(|wsb| {
+                        wsb.get_task(&TaskId::parse(&id).unwrap());
+                    })
             }
         },
         Commands::Init { .. } => {
@@ -115,7 +127,16 @@ fn process_args(cli: Cli) -> Option<()>  {
         },
     }
     .save()
-    .run();
+    .run()
+    // get results from operation that have something to return (some info to display)
+    .iter()
+    .for_each(|res| {
+        match res {
+            Return::Task(task) => {
+                println!("{}", task.to_string())
+            },
+        }
+    });
     Some(())
 }
 

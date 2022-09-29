@@ -76,6 +76,11 @@ impl WSB {
         // add task to task map
         tree.insert(task_id.clone(), task);
 
+        // since new tasks are always not done, all parents must be not done too
+        self.apply_along_path(&task_id, |task| {
+            task.status = TaskStatus::InProgress;
+        }, tree);
+
         tree.get_mut(&task_id)
     }
 

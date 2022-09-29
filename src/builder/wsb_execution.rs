@@ -1,12 +1,15 @@
-use crate::{task::task_id::TaskId, subsystem::wsb::WSB, project::Project};
+use crate::{task::{task_id::TaskId, Task}, subsystem::wsb::WSB, project::Project};
 
-#[derive(Debug)]
+use super::project_execution::Return;
+
+#[derive(Debug, Clone)]
 enum WSBAction {
     Show(String),
     Add(TaskId, String),
     Remove(TaskId),
     Value(TaskId, f64),
-    Done(TaskId, f64)
+    Done(TaskId, f64),
+    GetTask(TaskId)
 }
 
 #[derive(Debug)]
@@ -55,15 +58,23 @@ impl WSBExecution {
         self
     }
 
-    pub(crate) fn run(self, project: &mut Project) {
+    pub fn get_task(&mut self, id: &TaskId) -> &mut Self {
+        self.actions.push(WSBAction::GetTask(id.clone()));
+        self
+    }
+
+    pub(crate) fn run(self, project: &mut Project) -> Vec<Return> {
+        let mut results = Vec::new();
         self.actions
             .into_iter()
-            .for_each(|action| match action {
+            .for_each(|action| match &action {
                 WSBAction::Show(filename) => { project.wsb.to_dot_file(&filename, &mut project.tasks); },
-                WSBAction::Add(parent_id, name) => { project.wsb.add_task(parent_id, &name, &mut project.tasks).unwrap(); },
+                WSBAction::Add(parent_id, name) => { project.wsb.add_task(parent_id.clone(), &name, &mut project.tasks).unwrap(); },
                 WSBAction::Remove(id) => { project.wsb.remove(&id, &mut project.tasks).unwrap(); },
-                WSBAction::Done(id, cost) => { project.wsb.set_actual_cost(&id, cost, &mut project.tasks).unwrap(); },
-                WSBAction::Value(id, value) => { project.wsb.set_planned_value(&id, value, &mut project.tasks).unwrap(); },
+                WSBAction::Done(id, cost) => { project.wsb.set_actual_cost(&id, *cost, &mut project.tasks).unwrap(); },
+                WSBAction::Value(id, value) => { project.wsb.set_planned_value(&id, *value, &mut project.tasks).unwrap(); },
+                WSBAction::GetTask(id) => { results.push(Return::Task(project.wsb.get_task(&id, &mut project.tasks).unwrap().clone())); },
             });
+        results
     }
 }
