@@ -2,6 +2,8 @@ use std::{option::Iter, fmt::Display};
 
 use serde::{Serialize, Deserialize};
 
+use crate::error::Error;
+
 #[derive(Serialize, Deserialize)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TaskId {
@@ -26,24 +28,32 @@ impl TaskId {
         self.id
     }
 
-    pub fn parse(id: &str) -> Option<Self> {
+    pub fn child_idx(&self) -> Result<u32, Error> {
+        self.id
+            .last()
+            .ok_or_else(|| Error::NoChildIndex(self.clone()))
+            .cloned()
+    }
+
+    pub fn parse(id: &str) -> Result<Self, Error> {
         if id.is_empty() {
-            return Some(TaskId::new(vec![]));
+            return Ok(TaskId::new(vec![]));
         }
         let vec = id
             .split(".")
             .map(|n| n.parse::<u32>().ok())
-            .collect::<Option<Vec<u32>>>()?;
-        Some(TaskId::new(vec))
+            .collect::<Option<Vec<u32>>>()
+            .ok_or_else(|| Error::BadTaskIdString(id.to_string()))?;
+        Ok(TaskId::new(vec))
     }
 
-    pub fn parent(&self) -> Option<TaskId> {
+    pub fn parent(&self) -> Result<TaskId, Error> {
         let vec_len = self.id.len();
         if vec_len < 1 {
-            return None;
+            return Err(Error::NoParent(self.clone()));
         }
         let parent_vec = self.id[..vec_len-1].to_vec();
-        Some(TaskId::new(parent_vec))
+        Ok(TaskId::new(parent_vec))
     }
 
     pub fn child_ids(&self, num_childs: u32) -> Vec<TaskId> {
@@ -112,8 +122,8 @@ mod tests {
     fn parse() {
         assert_eq!(TaskId::parse("1.1").unwrap().as_vec(), &vec![1,1]);
         assert_eq!(TaskId::parse("4.523.123").unwrap().as_vec(), &vec![4, 523, 123]);
-        assert!(TaskId::parse(".1.1").is_none());
-        assert!(TaskId::parse("1.1.").is_none());
+        assert!(TaskId::parse(".1.1").is_err());
+        assert!(TaskId::parse("1.1.").is_err());
     }
 
     #[test]

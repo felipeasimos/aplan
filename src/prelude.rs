@@ -1,1 +1,1 @@
-pub use crate::{project, task};
+pub use crate::{project, task, error};

@@ -6,11 +6,13 @@ use super::wsb_execution::WSBExecution;
 enum ProjectAction {
     Save,
     SaveTo(String),
+    ReturnProject,
     RunWSBBuilder(WSBExecution),
 }
 
 pub enum Return {
-    Task(Task)
+    Task(Task),
+    Project(Project)
 }
 
 pub struct ProjectExecution {
@@ -46,6 +48,11 @@ impl ProjectExecution {
         self
     }
 
+    pub fn return_project(mut self) -> Self {
+        self.actions.push(ProjectAction::ReturnProject);
+        self
+    }
+
     pub fn run(mut self) -> Vec<Return> {
         let mut results : Vec<Return> = Vec::new();
         self.actions
@@ -53,7 +60,8 @@ impl ProjectExecution {
             .for_each(|action| match action {
                 ProjectAction::Save => { self.project.save().unwrap(); },
                 ProjectAction::SaveTo(filename) => { self.project.save_to(&filename).unwrap(); },
-                ProjectAction::RunWSBBuilder(wsb_execution) => { results.append(&mut wsb_execution.run(&mut self.project)); }, 
+                ProjectAction::ReturnProject => { results.push(Return::Project(self.project.clone())); },
+                ProjectAction::RunWSBBuilder(wsb_execution) => { results.append(&mut wsb_execution.run(&mut self.project)); },
             });
         results
     }

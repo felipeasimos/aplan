@@ -6,7 +6,8 @@ use std::io::Write;
 
 use crate::{subsystem::wsb::WSB, task::{Task, task_id::TaskId}};
 
-pub(crate) struct Project {
+#[derive(Clone, Debug)]
+pub struct Project {
 
     pub(crate) wsb: WSB,
     pub(crate) tasks: HashMap<TaskId, Task>
@@ -125,12 +126,14 @@ impl Project {
 
 #[cfg(test)]
 mod tests {
-    use crate::{builder::project_execution::ProjectExecution, task::{task_id::TaskId, Task}};
+    use crate::{builder::project_execution::{ProjectExecution, Return}, task::{task_id::TaskId, Task}, project::Project};
 
 
     #[test]
     fn builder_pattern() {
-        let project = ProjectExecution::new("test")
+
+        let mut project = Project::new("test");
+        ProjectExecution::new("test")
             .wsb(|wsb| {
                 wsb.expand(&[
                     ("", "Create WSB"),
@@ -145,17 +148,24 @@ mod tests {
                 .done(&TaskId::new(vec![1, 1]), 0.4)
                 .add(&TaskId::new(vec![]), "Create Web Interface");
             })
-            .save()
-            .run();
+            .return_project()
+            .run()
+            .iter()
+            .for_each(|res| {
+                if let Return::Project(proj) = res {
+                    project = proj.clone();
+                }
+            });
+
         // structure
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1]), &project.tasks), Some(&Task::new(TaskId::new(vec![1]), "Create WSB")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 1]), &project.tasks), Some(&Task::new(TaskId::new(vec![1, 1]), "Create Task Tree")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2]), &project.tasks), Some(&Task::new(TaskId::new(vec![1, 2]), "CRUD")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1]), &project.tasks), Some(&Task::new(TaskId::new(vec![1, 2, 1]), "Manage ac and pv")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2]), &project.tasks), Some(&Task::new(TaskId::new(vec![2]), "Create Burndown")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2, 1]), &project.tasks), Some(&Task::new(TaskId::new(vec![2, 1]), "Plot graph")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2, 2]), &project.tasks), Some(&Task::new(TaskId::new(vec![2, 2]), "Create story backlog")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![3]), &project.tasks), Some(&Task::new(TaskId::new(vec![3]), "Create Web Interface")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1]), &project.tasks), Ok(&Task::new(TaskId::new(vec![1]), "Create WSB")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 1]), &project.tasks), Ok(&Task::new(TaskId::new(vec![1, 1]), "Create Task Tree")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2]), &project.tasks), Ok(&Task::new(TaskId::new(vec![1, 2]), "CRUD")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1]), &project.tasks), Ok(&Task::new(TaskId::new(vec![1, 2, 1]), "Manage ac and pv")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2]), &project.tasks), Ok(&Task::new(TaskId::new(vec![2]), "Create Burndown")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2, 1]), &project.tasks), Ok(&Task::new(TaskId::new(vec![2, 1]), "Plot graph")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2, 2]), &project.tasks), Ok(&Task::new(TaskId::new(vec![2, 2]), "Create story backlog")));
+        assert_eq!(project.wsb.get_task(&TaskId::new(vec![3]), &project.tasks), Ok(&Task::new(TaskId::new(vec![3]), "Create Web Interface")));
 
         // value
         assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1]), &project.tasks).unwrap().get_planned_value(), 5.6);
@@ -168,7 +178,5 @@ mod tests {
         assert_eq!(project.wsb.get_task(&TaskId::new(vec![1]), &project.tasks).unwrap().get_actual_cost(), 0.4);
         assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1]), &project.tasks).unwrap().get_actual_cost(), 0.0);
         assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2]), &project.tasks).unwrap().get_actual_cost(), 0.0);
-
-
     }
 }
