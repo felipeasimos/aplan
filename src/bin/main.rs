@@ -34,7 +34,7 @@ enum Commands {
 enum WSBCommands {
 
     /// Write WSB visualization in DOT language to a file
-    Show {
+    Dot {
         /// File to write the visualization to
         #[clap(short, long, value_parser)]
         output: String
@@ -85,10 +85,10 @@ fn process_args(cli: Cli) -> Option<()>  {
     match &cli.command {
         Commands::Burndown {  } => todo!(),
         Commands::WSB { command } => match command {
-            WSBCommands::Show { output } => {
+            WSBCommands::Dot { output } => {
                 ProjectExecution::load(&cli.project).unwrap()
                     .wsb(|wsb| {
-                        wsb.show(output);
+                        wsb.dot(output);
                     })
             },
             WSBCommands::Add { parent, name } => {

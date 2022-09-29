@@ -4,7 +4,7 @@ use super::project_execution::Return;
 
 #[derive(Debug, Clone)]
 enum WSBAction {
-    Show(String),
+    Dot(String),
     Add(TaskId, String),
     Remove(TaskId),
     Value(TaskId, f64),
@@ -26,8 +26,8 @@ impl WSBExecution {
         }
     }
 
-    pub fn show(&mut self, filename: &str) -> &mut Self {
-        self.actions.push(WSBAction::Show(filename.to_string()));
+    pub fn dot(&mut self, filename: &str) -> &mut Self {
+        self.actions.push(WSBAction::Dot(filename.to_string()));
         self
     }
 
@@ -68,7 +68,7 @@ impl WSBExecution {
         self.actions
             .into_iter()
             .for_each(|action| match &action {
-                WSBAction::Show(filename) => { project.wsb.to_dot_file(&filename, &mut project.tasks); },
+                WSBAction::Dot(filename) => { project.wsb.to_dot_file(&filename, &mut project.tasks); },
                 WSBAction::Add(parent_id, name) => { project.wsb.add_task(parent_id.clone(), &name, &mut project.tasks).unwrap(); },
                 WSBAction::Remove(id) => { project.wsb.remove(&id, &mut project.tasks).unwrap(); },
                 WSBAction::Done(id, cost) => { project.wsb.set_actual_cost(&id, *cost, &mut project.tasks).unwrap(); },
