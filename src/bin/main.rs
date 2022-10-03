@@ -134,8 +134,7 @@ fn process_args(cli: Cli) -> Option<()>  {
         match res {
             Return::Task(task) => {
                 println!("{}", task.to_string())
-            },
-            Return::Project(_) => {},
+            }
         }
     });
     Some(())

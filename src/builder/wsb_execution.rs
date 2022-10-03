@@ -12,7 +12,7 @@ enum WSBAction {
     GetTask(TaskId)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WSBExecution {
 
     actions: Vec<WSBAction>

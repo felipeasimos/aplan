@@ -12,6 +12,18 @@ pub enum Error {
     #[error("File not found {0}")]
     FileNotFound(String),
 
+    #[error("Couldn't open file {0}")]
+    OpenFile(String),
+
+    #[error("Couldn't get stem from filename {0}")]
+    FilenameStem(String),
+
+    #[error("Couldn't read file {0}")]
+    FileRead(String),
+
+    #[error("Couldn't write to file {0}")]
+    FileWrite(String),
+
     #[error("Trunk tasks like {0} cannot be removed")]
     TrunkCannotBeRemoved(TaskId),
 
@@ -25,5 +37,8 @@ pub enum Error {
     TrunkCannotChangeCost(TaskId),
 
     #[error("Can't change planned value of trunk tasks like {0} directly")]
-    TrunkCannotChangeValue(TaskId)
+    TrunkCannotChangeValue(TaskId),
+
+    #[error("Couldn't parse JSON to project: {0}")]
+    ParseJsonContents(String)
 }

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize, de::{Visitor, self}, ser::SerializeMap};
 
 use std::io::Write;
 
-use crate::{subsystem::wsb::WSB, task::{Task, task_id::TaskId}};
+use crate::{subsystem::wsb::WSB, task::{Task, task_id::TaskId}, error::Error};
 
 #[derive(Clone, Debug)]
 pub struct Project {
@@ -79,19 +79,22 @@ impl Project {
         self.wsb.name(&self.tasks)
     }
 
-    pub fn load(name: &str) -> Option<Self> {
-        let json_contents = Self::project_file_contents(&name).unwrap();
-        Self::from_json(&json_contents).ok()
+    pub fn load(name: &str) -> Result<Self, Error> {
+        let json_contents = Self::project_file_contents(&name)?;
+        Self::from_json(&json_contents)
+            .or_else(|_| Err(Error::ParseJsonContents(json_contents)))
     }
 
-    pub fn save(&self) -> Option<()> {
-        let filename = Self::filename_from_project_name(self.name()).unwrap();
+    pub fn save(&self) -> Result<(), Error> {
+        let filename = Self::filename_from_project_name(self.name())?;
         self.save_to(&filename)
     }
 
-    pub fn save_to(&self, filename: &str) -> Option<()> {
-        let mut file = std::fs::File::create(filename).ok().unwrap();
-        write!(file, "{}", self.to_json().ok().unwrap()).ok()
+    pub fn save_to(&self, filename: &str) -> Result<(), Error> {
+        let mut file = std::fs::File::create(filename)
+            .or_else(|_| Err(Error::OpenFile(filename.to_string())))?;
+        write!(file, "{}", self.to_json().ok().unwrap())
+            .or_else(|_| Err(Error::FileWrite(filename.to_string())))
     }
 
     fn from_json(project_str: &str) -> Result<Self, serde_json::Error> {
@@ -103,80 +106,34 @@ impl Project {
         serde_json::to_string(self)
     }
 
-    fn filename_from_project_name(name: &str) -> Option<String> {
+    fn filename_from_project_name(name: &str) -> Result<String, Error> {
 
         let filename = ".".to_string() + &name;
-        let mut filename : PathBuf = PathBuf::from_str(&filename).ok()?;
+        let mut filename : PathBuf = PathBuf::from_str(&filename)
+            .or_else(|_| Err(Error::FileNotFound(filename.to_string())))?;
         filename.set_extension("ap");
-        Some(filename.to_str()?.to_string())
+
+        // TODO: check safety of this unwrap
+        Ok(filename.to_str().unwrap().to_string())
     }
 
-    fn project_name_from_filename(filename: &str) -> Option<String> {
+    fn project_name_from_filename(filename: &str) -> Result<String, Error> {
 
-        let filename = PathBuf::from_str(filename).ok()?;
-        let name : String = filename.file_stem()?.to_str()?[1..].to_string();
-        Some(name)
+        let filename = PathBuf::from_str(filename)
+            .or_else(|_| Err(Error::FileNotFound(filename.to_string())))?;
+        // TODO: check safety of this unwrap
+        let name : String = filename.file_stem().unwrap()
+            .to_str().unwrap()[1..].to_string();
+        Ok(name)
     }
 
-    fn project_file_contents(name: &str) -> Option<String> {
-        let filename = Self::filename_from_project_name(name).unwrap();
-        Some(std::fs::read_to_string(filename).unwrap())
+    fn project_file_contents(name: &str) -> Result<String, Error> {
+        let filename = Self::filename_from_project_name(name)?;
+        Ok(std::fs::read_to_string(filename.clone())
+            .or_else(|_| Err(Error::FileRead(filename.to_string())))?)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{builder::project_execution::{ProjectExecution, Return}, task::{task_id::TaskId, Task}, project::Project};
-
-
-    #[test]
-    fn builder_pattern() {
-
-        let mut project = Project::new("test");
-        ProjectExecution::new("test")
-            .wsb(|wsb| {
-                wsb.expand(&[
-                    ("", "Create WSB"),
-                        ("1", "Create Task Tree"),
-                        ("1", "CRUD"),
-                            ("1.2", "Manage ac and pv"),
-                    ("", "Create Burndown"),
-                        ("2", "Plot graph"),
-                        ("2", "Create story backlog")
-                ])
-                .value(&TaskId::new(vec![1, 2, 1]), 5.6)
-                .done(&TaskId::new(vec![1, 1]), 0.4)
-                .add(&TaskId::new(vec![]), "Create Web Interface");
-            })
-            .return_project()
-            .run()
-            .iter()
-            .for_each(|res| {
-                if let Return::Project(proj) = res {
-                    project = proj.clone();
-                }
-            });
-
-        // structure
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1]), &project.tasks), Ok(&Task::new(TaskId::new(vec![1]), "Create WSB")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 1]), &project.tasks), Ok(&Task::new(TaskId::new(vec![1, 1]), "Create Task Tree")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2]), &project.tasks), Ok(&Task::new(TaskId::new(vec![1, 2]), "CRUD")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1]), &project.tasks), Ok(&Task::new(TaskId::new(vec![1, 2, 1]), "Manage ac and pv")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2]), &project.tasks), Ok(&Task::new(TaskId::new(vec![2]), "Create Burndown")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2, 1]), &project.tasks), Ok(&Task::new(TaskId::new(vec![2, 1]), "Plot graph")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![2, 2]), &project.tasks), Ok(&Task::new(TaskId::new(vec![2, 2]), "Create story backlog")));
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![3]), &project.tasks), Ok(&Task::new(TaskId::new(vec![3]), "Create Web Interface")));
-
-        // value
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1]), &project.tasks).unwrap().get_planned_value(), 5.6);
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2]), &project.tasks).unwrap().get_planned_value(), 5.6);
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1]), &project.tasks).unwrap().get_planned_value(), 5.6);
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 1]), &project.tasks).unwrap().get_planned_value(), 0.0);
-
-        // actual cost
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 1]), &project.tasks).unwrap().get_actual_cost(), 0.4);
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1]), &project.tasks).unwrap().get_actual_cost(), 0.4);
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2, 1]), &project.tasks).unwrap().get_actual_cost(), 0.0);
-        assert_eq!(project.wsb.get_task(&TaskId::new(vec![1, 2]), &project.tasks).unwrap().get_actual_cost(), 0.0);
-    }
 }
