@@ -1,10 +1,11 @@
-use crate::{task::{task_id::TaskId, Task}, subsystem::wsb::WSB, project::Project};
+use crate::{task::task_id::TaskId, project::Project, error::Error, util};
 
 use super::project_execution::Return;
 
 #[derive(Debug, Clone)]
 enum WSBAction {
-    Dot(String),
+    Dot(Option<String>),
+    Tree(Option<String>),
     Add(TaskId, String),
     Remove(TaskId),
     PlannedValue(TaskId, f64),
@@ -26,8 +27,13 @@ impl WSBExecution {
         }
     }
 
-    pub fn dot(&mut self, filename: &str) -> &mut Self {
-        self.actions.push(WSBAction::Dot(filename.to_string()));
+    pub fn dot(&mut self, filename: Option<&str>) -> &mut Self {
+        self.actions.push(WSBAction::Dot(filename.map(|s| s.to_string())));
+        self
+    }
+
+    pub fn tree(&mut self, filename: Option<&str>) -> &mut Self {
+        self.actions.push(WSBAction::Tree(filename.map(|s| s.to_string())));
         self
     }
 
@@ -63,18 +69,22 @@ impl WSBExecution {
         self
     }
 
-    pub(crate) fn run(self, project: &mut Project) -> Vec<Return> {
+    pub(crate) fn run(self, project: &mut Project) -> Result<Vec<Return>, Error> {
         let mut results = Vec::new();
         self.actions
             .into_iter()
-            .for_each(|action| match &action {
-                WSBAction::Dot(filename) => { project.wsb.to_dot_file(&filename, &mut project.tasks); },
-                WSBAction::Add(parent_id, name) => { project.wsb.add_task(parent_id.clone(), &name, &mut project.tasks).unwrap(); },
-                WSBAction::Remove(id) => { project.wsb.remove(&id, &mut project.tasks).unwrap(); },
-                WSBAction::Done(id, cost) => { project.wsb.set_actual_cost(&id, *cost, &mut project.tasks).unwrap(); },
-                WSBAction::PlannedValue(id, value) => { project.wsb.set_planned_value(&id, *value, &mut project.tasks).unwrap(); },
-                WSBAction::GetTask(id) => { results.push(Return::Task(project.wsb.get_task(&id, &mut project.tasks).unwrap().clone())); },
+            .try_for_each(|action| -> Result<(), Error> {
+                match &action {
+                    WSBAction::Dot(filename) => { util::to_file(filename.as_deref(), project.wsb.to_dot_str(&mut project.tasks)); },
+                    WSBAction::Tree(filename) => { util::to_file(filename.as_deref(), project.wsb.to_tree_str(&mut project.tasks)); },
+                    WSBAction::Add(parent_id, name) => { project.wsb.add_task(parent_id.clone(), &name, &mut project.tasks); },
+                    WSBAction::Remove(id) => { project.wsb.remove(&id, &mut project.tasks); },
+                    WSBAction::Done(id, cost) => { project.wsb.set_actual_cost(&id, *cost, &mut project.tasks); },
+                    WSBAction::PlannedValue(id, value) => { project.wsb.set_planned_value(&id, *value, &mut project.tasks); },
+                    WSBAction::GetTask(id) => { results.push(Return::Task(project.wsb.get_task(&id, &mut project.tasks)?.clone())); },
+                }
+                Ok(())
             });
-        results
+        Ok(results)
     }
 }

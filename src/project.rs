@@ -4,70 +4,72 @@ use serde::{Deserialize, Serialize, de::{Visitor, self}, ser::SerializeMap};
 
 use std::io::Write;
 
-use crate::{subsystem::wsb::WSB, task::{Task, task_id::TaskId}, error::Error};
+use crate::{subsystem::{wsb::WSB, member::Member}, error::Error, task::tasks::Tasks};
+#[derive(Debug, Clone)]
+pub struct Members(HashMap<String, Member>);
 
-#[derive(Clone, Debug)]
-pub struct Project {
-
-    pub(crate) wsb: WSB,
-    pub(crate) tasks: HashMap<TaskId, Task>
-    // burndown: Burndown
-}
-
-impl Serialize for Project {
+impl Serialize for Members {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer {
-        
-            let mut map = serializer.serialize_map(Some(self.tasks.len()))?;
-            for (k, v) in &self.tasks {
+            let mut map = serializer.serialize_map(Some(self.0.len()))?;
+            for (k, v) in &self.0 {
                 map.serialize_entry(&k.to_string(), &v)?;
             }
             map.end()
     }
 }
 
-struct ProjectVisitor;
+struct MembersVisitor;
 
-impl<'de> Visitor<'de> for ProjectVisitor {
-    type Value = Project;
+impl<'de> Visitor<'de> for MembersVisitor {
+    type Value = Members;
 
     fn expecting(&self, formatter: &mut serde::__private::fmt::Formatter) -> serde::__private::fmt::Result {
-        formatter.write_str("HashMap with TaskId as key and Task as value")
+        formatter.write_str("HashMap with String as key and Member as value")
     }
 
     fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
     where
         M: de::MapAccess<'de>,
     {
-        let mut map : HashMap<TaskId, Task> = HashMap::with_capacity(access.size_hint().unwrap_or(0));
+        let mut members : HashMap<String, Member> = HashMap::with_capacity(access.size_hint().unwrap_or(0));
 
         while let Some((key, value)) = access.next_entry()? {
-            let task_id = TaskId::parse(key).unwrap();
-            map.insert(task_id, value);
+            members.insert(key, value);
         }
 
-        Ok(Project {
-            wsb: WSB {},
-            tasks: map
-        })
+        Ok(Members(members))
     }
 }
 
-impl<'de> Deserialize<'de> for Project {
+impl<'de> Deserialize<'de> for Members {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de> {
 
-        deserializer.deserialize_map(ProjectVisitor {})
+        deserializer.deserialize_map(MembersVisitor {})
     }
 }
+
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Project {
+
+    pub(crate) wsb: WSB,
+    pub(crate) tasks: Tasks,
+    pub(crate) members: Members 
+    // burndown: Burndown
+}
+
 impl Project {
     pub fn new(name: &str) -> Self {
-        let mut map = HashMap::new();
+        let mut tasks = Tasks::new();
+        let wsb = WSB::new(name, &mut tasks);
         Self {
-            wsb: WSB::new(name, &mut map),
-            tasks: map
+            wsb,
+            tasks,
+            members: Members(HashMap::new())
         }
     }
 
@@ -82,7 +84,6 @@ impl Project {
     pub fn load(name: &str) -> Result<Self, Error> {
         let json_contents = Self::project_file_contents(&name)?;
         Self::from_json(&json_contents)
-            .or_else(|_| Err(Error::ParseJsonContents(json_contents)))
     }
 
     pub fn save(&self) -> Result<(), Error> {
@@ -93,17 +94,18 @@ impl Project {
     pub fn save_to(&self, filename: &str) -> Result<(), Error> {
         let mut file = std::fs::File::create(filename)
             .or_else(|_| Err(Error::OpenFile(filename.to_string())))?;
-        write!(file, "{}", self.to_json().ok().unwrap())
+        write!(file, "{}", self.to_json()?)
             .or_else(|_| Err(Error::FileWrite(filename.to_string())))
     }
 
-    fn from_json(project_str: &str) -> Result<Self, serde_json::Error> {
-        let project : Project = serde_json::from_str(project_str)?;
-        Ok(project)
+    fn from_json(project_str: &str) -> Result<Self, Error> {
+        serde_json::from_str(project_str)
+            .or_else(|_| Err(Error::ParseJsonContents(project_str.to_string())))
     }
 
-    fn to_json(&self) -> Result<String, serde_json::Error> {
+    fn to_json(&self) -> Result<String, Error> {
         serde_json::to_string(self)
+            .or_else(|_| Err(Error::ParseProjectContents))
     }
 
     fn filename_from_project_name(name: &str) -> Result<String, Error> {

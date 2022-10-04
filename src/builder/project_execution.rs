@@ -11,6 +11,7 @@ enum ProjectAction {
 
 pub enum Return {
     Task(Task),
+    Text(String)
 }
 
 pub struct ProjectExecution {
@@ -46,15 +47,18 @@ impl ProjectExecution {
         self
     }
 
-    pub fn run(mut self) -> Vec<Return> {
+    pub fn run(mut self) -> Result<Vec<Return>, Error> {
         let mut results : Vec<Return> = Vec::new();
         self.actions
             .into_iter()
-            .for_each(|action| match action {
-                ProjectAction::Save => { self.project.save().unwrap(); },
-                ProjectAction::SaveTo(filename) => { self.project.save_to(&filename).unwrap(); },
-                ProjectAction::RunWSBBuilder(wsb_execution) => { results.append(&mut wsb_execution.run(&mut self.project)); },
+            .try_for_each(|action| -> Result<(), Error> {
+                match action {
+                    ProjectAction::Save => { self.project.save(); },
+                    ProjectAction::SaveTo(filename) => { self.project.save_to(&filename); },
+                    ProjectAction::RunWSBBuilder(wsb_execution) => { results.append(&mut wsb_execution.run(&mut self.project)?); },
+                }
+                Ok(())
             });
-        results
+        Ok(results)
     }
 }

@@ -1,4 +1,4 @@
-use crate::task::task_id::TaskId;
+use crate::{task::task_id::TaskId, project::Project};
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -40,5 +40,17 @@ pub enum Error {
     TrunkCannotChangeValue(TaskId),
 
     #[error("Couldn't parse JSON to project: {0}")]
-    ParseJsonContents(String)
+    ParseJsonContents(String),
+
+    #[error("Couldn't parse project to JSON")]
+    ParseProjectContents,
+
+    #[error("Couldn't parse CLI argument: {0}")]
+    ParseCliArgument(String),
+
+    #[error("There is no next sibling for: {0}")]
+    NoNextSibling(TaskId),
+
+    #[error("There is no prev sibling for: {0}")]
+    NoPrevSibling(TaskId)
 }
