@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 use aplan::{builder::project_execution::{ProjectExecution, Return}, task::task_id::TaskId};
+use lazy_static::lazy_static;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -42,8 +43,8 @@ enum WSBCommands {
     /// Add new task to WSB
     Add {
         /// Parent id
-        #[clap(short, long, value_parser, default_value = "")]
-        parent: String,
+        #[clap(short, long, value_parser = task_id_parser)]
+        parent: Option<TaskId>,
         /// Name of the task
         #[clap(short, long, value_parser)]
         name: String
@@ -51,23 +52,23 @@ enum WSBCommands {
     /// Remove task from WSB
     Remove {
         /// Id to the task to remove
-        #[clap(short, long, value_parser)]
-        id: String,
+        #[clap(short, long, value_parser = task_id_parser)]
+        id: TaskId,
     },
     /// Mark a task as done
     Done {
         /// Task id
-        #[clap(short, long, value_parser)]
-        id: String,
+        #[clap(short, long, value_parser = task_id_parser)]
+        id: TaskId,
         /// Cost it took to complete task
         #[clap(value_parser)]
         cost: f64
     },
     /// Set value of a task
-    Value {
+    PlannedValue {
         /// Task id
-        #[clap(short, long, value_parser)]
-        id: String,
+        #[clap(short, long, value_parser = task_id_parser)]
+        id: TaskId,
         /// Value of the task
         #[clap(value_parser)]
         value: f64
@@ -75,9 +76,13 @@ enum WSBCommands {
     /// Get info about a task
     GetTask {
         /// Task id
-        #[clap(short, long, value_parser)]
-        id: String
+        #[clap(short, long, value_parser = task_id_parser)]
+        id: TaskId
     }
+}
+
+fn task_id_parser(s: &str) -> Result<TaskId, String> {
+    TaskId::parse(s).or_else(|_| Err(s.to_string()))
 }
 
 fn process_args(cli: Cli) -> Option<()>  {
@@ -94,31 +99,31 @@ fn process_args(cli: Cli) -> Option<()>  {
             WSBCommands::Add { parent, name } => {
                 ProjectExecution::load(&cli.project).unwrap()
                     .wsb(|wsb| {
-                        wsb.add(&TaskId::parse(&parent).unwrap(), name);
+                        wsb.add(parent.as_ref().unwrap_or(&TaskId::get_root_id()), name);
                     })
             },
             WSBCommands::Remove { id } => {
                 ProjectExecution::load(&cli.project).unwrap()
                     .wsb(|wsb| {
-                        wsb.remove(&TaskId::parse(&id).unwrap());
+                        wsb.remove(&id);
                     })
             },
             WSBCommands::Done { id, cost } => {
                 ProjectExecution::load(&cli.project).unwrap()
                     .wsb(|wsb| {
-                        wsb.done(&TaskId::parse(&id).unwrap(), *cost);
+                        wsb.done(&id, *cost);
                     })
             },
-            WSBCommands::Value { id, value } => {
+            WSBCommands::PlannedValue { id, value } => {
                 ProjectExecution::load(&cli.project).unwrap()
                     .wsb(|wsb| {
-                        wsb.value(&TaskId::parse(&id).unwrap(), *value);
+                        wsb.planned_value(&id, *value);
                     })
             },
             WSBCommands::GetTask { id } => {
                 ProjectExecution::load(&cli.project).unwrap()
                     .wsb(|wsb| {
-                        wsb.get_task(&TaskId::parse(&id).unwrap());
+                        wsb.get_task(&id);
                     })
             }
         },

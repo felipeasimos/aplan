@@ -7,7 +7,7 @@ enum WSBAction {
     Dot(String),
     Add(TaskId, String),
     Remove(TaskId),
-    Value(TaskId, f64),
+    PlannedValue(TaskId, f64),
     Done(TaskId, f64),
     GetTask(TaskId)
 }
@@ -53,8 +53,8 @@ impl WSBExecution {
         self
     }
 
-    pub fn value(&mut self, id: &TaskId, planned_value: f64) -> &mut Self {
-        self.actions.push(WSBAction::Value(id.clone(), planned_value));
+    pub fn planned_value(&mut self, id: &TaskId, planned_value: f64) -> &mut Self {
+        self.actions.push(WSBAction::PlannedValue(id.clone(), planned_value));
         self
     }
 
@@ -72,7 +72,7 @@ impl WSBExecution {
                 WSBAction::Add(parent_id, name) => { project.wsb.add_task(parent_id.clone(), &name, &mut project.tasks).unwrap(); },
                 WSBAction::Remove(id) => { project.wsb.remove(&id, &mut project.tasks).unwrap(); },
                 WSBAction::Done(id, cost) => { project.wsb.set_actual_cost(&id, *cost, &mut project.tasks).unwrap(); },
-                WSBAction::Value(id, value) => { project.wsb.set_planned_value(&id, *value, &mut project.tasks).unwrap(); },
+                WSBAction::PlannedValue(id, value) => { project.wsb.set_planned_value(&id, *value, &mut project.tasks).unwrap(); },
                 WSBAction::GetTask(id) => { results.push(Return::Task(project.wsb.get_task(&id, &mut project.tasks).unwrap().clone())); },
             });
         results

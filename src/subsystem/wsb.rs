@@ -6,7 +6,7 @@ use crate::task::{Task, TaskStatus};
 use crate::task::task_id::TaskId;
 
 #[derive(Clone, Debug)]
-pub struct WSB;
+pub struct WSB {}
 
 impl WSB {
     pub fn new(name: &str, map: &mut HashMap<TaskId, Task>) -> Self {
@@ -43,7 +43,12 @@ impl WSB {
     }
 
     pub fn spi(&self, tree: &HashMap<TaskId, Task>) -> f64 {
-        self.earned_value(tree) / self.planned_value(tree)
+        let res = self.earned_value(tree) / self.planned_value(tree);
+        if res.is_nan() {
+            0.0
+        } else {
+            res
+        }
     }
 
     pub fn sv(&self, tree: &HashMap<TaskId, Task>) -> f64 {
@@ -51,7 +56,12 @@ impl WSB {
     }
 
     pub fn cpi(&self, tree: &HashMap<TaskId, Task>) -> f64 {
-        self.earned_value(tree) / self.actual_cost(tree)
+        let res = self.earned_value(tree) / self.actual_cost(tree);
+        if res.is_nan() {
+            0.0
+        } else {
+            res
+        }
     }
 
     pub fn cv(&self, tree: &HashMap<TaskId, Task>) -> f64 {
@@ -234,9 +244,17 @@ impl WSB {
     }
 
     pub fn to_dot_str(&self, tree: &HashMap<TaskId, Task>) -> String {
-        "digraph G {\n".to_string() +
-            &self.subtree_to_dot_str(&TaskId::get_root_id(), tree) +
-            &"}".to_string()
+        let stats = format!(
+            "earned value: {}, spi: {}, sv: {}, cpi: {}, cv: {}",
+            self.earned_value(tree),
+            self.spi(tree),
+            self.sv(tree),
+            self.cpi(tree),
+            self.cv(tree));
+        format!(
+            "digraph G {{\nlabel=\"{}\"\n{}}}",
+            stats,
+            self.subtree_to_dot_str(&TaskId::get_root_id(), tree))
     }
 
     pub fn tasks<'a>(&'a self, tree: &'a HashMap<TaskId, Task>) -> Vec<&Task> {
@@ -301,7 +319,7 @@ mod tests {
                 ("2", "Create help menu"),
             ("", "Create GUI tool"),
                 ("3", "Create plot visualizer")
-        ], map);
+        ], map).unwrap();
         assert_eq!(wsb.get_task(&task_id_1, map), Ok(&Task::new(TaskId::new(vec![1]), "Create WSB")));
         assert_eq!(wsb.get_task_mut(&task_id_1, map), Ok(&mut Task::new(TaskId::new(vec![1]), "Create WSB")));
 
