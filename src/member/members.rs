@@ -1,6 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_map::Keys};
 
 use serde::{Serialize, de::{Visitor, self}, Deserialize, ser::SerializeMap};
+
+use crate::{task::task_id::TaskId, error::Error};
 
 use super::Member;
 
@@ -59,5 +61,32 @@ impl Members {
     pub fn add_member(&mut self, name: &str) {
         let member = Member::new(name);
         self.0.insert(name.to_string(), member);
+    }
+
+    pub fn remove_member(&mut self, name: &str) {
+        self.0.remove(name);
+    }
+
+    pub fn get(&self, name: &str) -> Result<&Member, Error> {
+        self.0.get(name)
+            .ok_or_else(|| Error::MemberNotFound(name.to_string()))
+    }
+
+    pub fn get_mut(&mut self, name: &str) -> Result<&mut Member, Error> {
+        self.0.get_mut(name)
+            .ok_or_else(|| Error::MemberNotFound(name.to_string()))
+    }
+
+    pub fn names(&self) -> Keys<String, Member> {
+        self.0
+            .keys()
+    }
+
+    pub fn assign_task_to_member(&mut self, task_id: TaskId, name: &str) -> Result<(), Error> {
+        Ok(self.get_mut(name)?.add_task(task_id))
+    }
+
+    pub fn remove_member_from_task(&mut self, task_id: &TaskId, name: &str) -> Result<(), Error> {
+        Ok(self.get_mut(name)?.remove_task(task_id))
     }
 }

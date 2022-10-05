@@ -1,7 +1,7 @@
 pub mod task_id;
 pub mod tasks;
 
-use std::fmt::Display;
+use std::{fmt::Display, collections::HashSet};
 
 use serde::{Serialize, Deserialize};
 
@@ -41,6 +41,7 @@ pub struct Task {
     pub(crate) actual_cost: f64,
     pub(crate) num_child: u32,
     pub(crate) status: TaskStatus,
+    members_names: HashSet<String>
 }
 
 impl Eq for Task {}
@@ -59,7 +60,8 @@ impl Task {
             planned_value: 0.0,
             actual_cost: 0.0,
             num_child: 0,
-            status: TaskStatus::InProgress
+            status: TaskStatus::InProgress,
+            members_names: HashSet::new()
         }
     }
 
@@ -69,10 +71,6 @@ impl Task {
 
     pub fn name(&self) -> &str {
         &self.name
-    }
-
-    pub(crate) fn set_id(&mut self, id: TaskId) {
-        self.id = id;
     }
 
     pub fn get_planned_value(&self) -> f64 {
@@ -93,6 +91,18 @@ impl Task {
 
     pub fn is_leaf(&self) -> bool {
         self.num_child == 0
+    }
+
+    pub fn add_member(&mut self, name: &str) {
+        self.members_names.insert(name.to_string());
+    }
+
+    pub fn remove_member(&mut self, name: &str) {
+        self.members_names.remove(name);
+    }
+
+    pub fn has_member(&self, name: &str) -> bool {
+        self.members_names.contains(name)
     }
 }
 

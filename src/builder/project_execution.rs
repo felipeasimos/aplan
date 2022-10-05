@@ -1,4 +1,4 @@
-use crate::{project::Project, task::Task, error::Error};
+use crate::{project::Project, task::{Task, task_id::TaskId}, error::Error};
 
 use super::wsb_execution::WSBExecution;
 
@@ -7,6 +7,9 @@ enum ProjectAction {
     Save,
     SaveTo(String),
     AddMember(String),
+    RemoveMember(String),
+    AssignTaskToMember(TaskId, String),
+    RemoveMemberFromTask(TaskId, String),
     RunWSBBuilder(WSBExecution),
 }
 
@@ -42,8 +45,28 @@ impl ProjectExecution {
         self
     }
 
+    pub fn save_to(mut self, filename: &str) -> Self {
+        self.actions.push(ProjectAction::SaveTo(filename.to_string()));
+        self
+    }
+
     pub fn add_member(mut self, name: &str) -> Self {
         self.actions.push(ProjectAction::AddMember(name.to_string()));
+        self
+    }
+
+    pub fn remove_member(mut self, name: &str) -> Self {
+        self.actions.push(ProjectAction::RemoveMember(name.to_string()));
+        self
+    }
+
+    pub fn assign_task_to_member(mut self, id: TaskId, name: &str) -> Self {
+        self.actions.push(ProjectAction::AssignTaskToMember(id, name.to_string()));
+        self
+    }
+
+    pub fn remove_member_from_task(mut self, id: TaskId, name: &str) -> Self {
+        self.actions.push(ProjectAction::RemoveMemberFromTask(id, name.to_string()));
         self
     }
 
@@ -60,13 +83,16 @@ impl ProjectExecution {
             .into_iter()
             .try_for_each(|action| -> Result<(), Error> {
                 match action {
-                    ProjectAction::Save => { self.project.save(); },
-                    ProjectAction::SaveTo(filename) => { self.project.save_to(&filename); },
+                    ProjectAction::Save => { self.project.save()?; },
+                    ProjectAction::SaveTo(filename) => { self.project.save_to(&filename)?; },
                     ProjectAction::AddMember(name) => { self.project.add_member(&name); },
+                    ProjectAction::RemoveMember(name) => { self.project.remove_member(&name)?; },
+                    ProjectAction::AssignTaskToMember(task_id, name) => { self.project.assign_task_to_member(task_id, &name)?; },
+                    ProjectAction::RemoveMemberFromTask(task_id, name) => { self.project.remove_member_from_task(&task_id, &name)?; },
                     ProjectAction::RunWSBBuilder(wsb_execution) => { results.append(&mut wsb_execution.run(&mut self.project)?); },
                 }
                 Ok(())
-            });
+            })?;
         Ok(results)
     }
 }

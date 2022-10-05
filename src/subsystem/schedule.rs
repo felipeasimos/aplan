@@ -27,8 +27,6 @@ pub struct TimeSlot {
     available: Duration
 }
 
-
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 enum RoutineExceptionType {
     AVAILABLE,

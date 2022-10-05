@@ -12,10 +12,6 @@ impl Tasks {
         Self(HashMap::new())
     }
 
-    pub(crate) fn from(map: HashMap<TaskId, Task>) -> Self {
-        Self(map)
-    }
-
     pub(crate) fn insert(&mut self, id: TaskId, task: Task) {
         self.0.insert(id, task);
     }

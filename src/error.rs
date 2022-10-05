@@ -1,4 +1,4 @@
-use crate::{task::task_id::TaskId, project::Project};
+use crate::task::task_id::TaskId;
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -12,6 +12,9 @@ pub enum Error {
     #[error("File not found {0}")]
     FileNotFound(String),
 
+    #[error("Member not found {0}")]
+    MemberNotFound(String),
+
     #[error("Couldn't open file {0}")]
     OpenFile(String),
 
@@ -23,6 +26,9 @@ pub enum Error {
 
     #[error("Couldn't write to file {0}")]
     FileWrite(String),
+
+    #[error("Cannot remove member {1} from a task {0}, since it hasn't been assigned to them")]
+    CannotRemoveMemberFromTask(TaskId, String),
 
     #[error("Trunk tasks like {0} cannot be removed")]
     TrunkCannotBeRemoved(TaskId),
@@ -39,6 +45,12 @@ pub enum Error {
     #[error("Can't change planned value of trunk tasks like {0} directly")]
     TrunkCannotChangeValue(TaskId),
 
+    #[error("Can't add members to trunk tasks like {0} directly")]
+    TrunkCannotAddMember(TaskId),
+
+    #[error("Can't remove members from trunk tasks like {0} directly")]
+    TrunkCannotRemoveMember(TaskId),
+
     #[error("Couldn't parse JSON to project: {0}")]
     ParseJsonContents(String),
 
@@ -52,5 +64,5 @@ pub enum Error {
     NoNextSibling(TaskId),
 
     #[error("There is no prev sibling for: {0}")]
-    NoPrevSibling(TaskId)
+    NoPrevSibling(TaskId),
 }

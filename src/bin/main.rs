@@ -33,8 +33,7 @@ enum Commands {
         command: MemberCommands
     },
     /// Create project file
-    Init {
-    }
+    Init { }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
@@ -57,11 +56,37 @@ impl FromStr for ShowFormat {
 
 #[derive(Subcommand)]
 enum MemberCommands {
+    /// List members in the project
+    List { },
     /// Add member to project
     Add {
         /// Name of the member
         #[clap(value_parser)]
         name: String
+    },
+    /// Remove member from project
+    Remove {
+        /// Name of the member
+        #[clap(value_parser)]
+        name: String
+    },
+    /// Assign task to member
+    Assign {
+        /// Name of the member
+        #[clap(value_parser)]
+        name: String,
+        /// Task id
+        #[clap(value_parser = task_id_parser)]
+        id: TaskId
+    },
+    /// Remove Member from task
+    RemoveTask {
+        /// Name of the member
+        #[clap(value_parser)]
+        name: String,
+        /// Task id
+        #[clap(value_parser = task_id_parser)]
+        id: TaskId
     }
 }
 
@@ -169,9 +194,24 @@ fn process_wsb(command: &WSBCommands, project_name: &str) -> Result<ProjectExecu
 
 fn process_member(command: &MemberCommands, project_name: &str) -> Result<ProjectExecution, Error> {
     Ok(match command {
+        MemberCommands::List {  } => {
+            ProjectExecution::load(&project_name)?
+        },
         MemberCommands::Add { name } => {
             ProjectExecution::load(&project_name)?
             .add_member(name)
+        },
+        MemberCommands::Remove { name } => {
+            ProjectExecution::load(&project_name)?
+            .remove_member(name)
+        },
+        MemberCommands::Assign { name, id } => {
+            ProjectExecution::load(&project_name)?
+            .assign_task_to_member(id.clone(), name)
+        },
+        MemberCommands::RemoveTask { name, id } => {
+            ProjectExecution::load(&project_name)?
+            .remove_member_from_task(id.clone(), name)
         },
     })
 }
@@ -204,8 +244,7 @@ fn process_args(cli: Cli) -> Result<(), Error>  {
             },
         }
         Ok(())
-    });
-    Ok(())
+    })
 }
 
 fn main() -> Result<(), Error> {

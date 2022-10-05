@@ -1,5 +1,3 @@
-use std::io::{Write, self};
-
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
@@ -100,7 +98,7 @@ impl WSB {
         self.get_task(&prev_sibling_id, tasks)
     }
 
-    pub fn add_task<'a>(&'a mut self, mut parent_task_id: TaskId, name: &str, tasks: &'a mut Tasks) -> Result<&mut Task, Error> {
+    pub fn add_task<'a>(&'a mut self, parent_task_id: TaskId, name: &str, tasks: &'a mut Tasks) -> Result<&mut Task, Error> {
         // get parent
         let parent_task = self.get_task_mut(&parent_task_id, tasks)?;
 
@@ -108,8 +106,7 @@ impl WSB {
         parent_task.num_child += 1;
 
         // get new task id
-        parent_task_id.as_vec_mut().push(parent_task.num_child);
-        let task_id = parent_task_id;
+        let task_id = parent_task_id.new_child_id(parent_task.num_child);
 
         // create task
         let task = Task::new(task_id.clone(), name);
@@ -120,9 +117,32 @@ impl WSB {
         // since new tasks are always not done, all parents must be not done too
         self.apply_along_path(&task_id, |task| {
             task.status = TaskStatus::InProgress;
-        }, tasks);
+        }, tasks)?;
 
         self.get_task_mut(&task_id, tasks)
+    }
+
+    pub fn assign_task_to_member<'a>(&'a mut self, task_id: &TaskId, name: &str, tasks: &'a mut Tasks) -> Result<(), Error> {
+        if self.get_task(task_id, tasks)?.is_trunk() {
+            return Err(Error::TrunkCannotAddMember(task_id.clone()))
+        }
+
+        self.apply_along_path(task_id, |task| {
+            task.add_member(name)
+        }, tasks)
+    }
+
+    pub fn remove_member_from_task<'a>(&'a mut self, task_id: &TaskId, name: &str, tasks: &'a mut Tasks) -> Result<(), Error> {
+        let task = self.get_task(task_id, tasks)?;
+        if task.is_trunk() {
+            return Err(Error::TrunkCannotRemoveMember(task_id.clone()))
+        } else if !task.has_member(name) {
+            return Err(Error::CannotRemoveMemberFromTask(task_id.clone(), name.to_string()))
+        }
+
+        self.apply_along_path(task_id, |task| {
+            task.remove_member(name)
+        }, tasks)
     }
 
     pub fn expand<const N: usize>(&mut self, arr: &[(&str, &str); N], tasks: &mut Tasks) -> Result<&mut Self, Error> {
@@ -167,7 +187,7 @@ impl WSB {
             return Err(Error::TrunkCannotBeRemoved(task_id.clone()));
         }
 
-        self.remove_task_stats_from_tasks(&task_id, tasks);
+        self.remove_task_stats_from_tasks(&task_id, tasks)?;
         let parent_id = task_id.parent()?;
         let parent_childs = {
             let mut parent = self.get_task_mut(&parent_id, tasks)?;
@@ -182,11 +202,12 @@ impl WSB {
         let task = tasks.remove(&task_id).ok_or_else(||Error::TaskNotFound(task_id.clone()))?;
 
         // change id of child that comes after id node
-        parent_childs.iter().enumerate().for_each(|(index, child_id)| {
+        parent_childs.iter().enumerate().try_for_each(|(index, child_id)| -> Result<(), _> {
             if child_idx < index {
-                self.subtract_id(child_id, layer_idx, tasks);
+                self.subtract_id(child_id, layer_idx, tasks)?;
             }
-        });
+            Ok(())
+        })?;
 
         // remove last id child from the parent
         task_id.as_vec_mut()[layer_idx] = parent_childs.len() as u32;
@@ -195,10 +216,11 @@ impl WSB {
         Ok(task)
     }
 
-    fn remove_task_stats_from_tasks(&mut self, task_id: &TaskId, tasks: &mut Tasks) {
+    fn remove_task_stats_from_tasks(&mut self, task_id: &TaskId, tasks: &mut Tasks) -> Result<(), Error> {
 
-        self.set_actual_cost(&task_id, 0.0, tasks);
-        self.set_planned_value(&task_id, 0.0, tasks);
+        self.set_actual_cost(&task_id, 0.0, tasks)?;
+        self.set_planned_value(&task_id, 0.0, tasks)?;
+        Ok(())
     }
 
     fn children_are_done(&self, task_id: &TaskId, tasks: &Tasks) -> bool {
@@ -222,7 +244,7 @@ impl WSB {
 
                 self.apply_along_path(&parent_id, |mut task| {
                     task.actual_cost += diff;
-                }, tasks);
+                }, tasks)?;
         }
 
         task_id

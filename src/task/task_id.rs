@@ -1,4 +1,4 @@
-use std::{option::Iter, fmt::Display};
+use std::fmt::Display;
 
 use serde::{Serialize, Deserialize};
 
@@ -78,6 +78,7 @@ impl TaskId {
             });
         std::iter::once(Self::get_root_id())
             .chain(id_iter)
+            .into_iter()
             .collect::<Vec<TaskId>>()
     }
 

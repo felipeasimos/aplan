@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use std::io::Write;
 
-use crate::{subsystem::wsb::WSB, error::Error, task::tasks::Tasks, member::{members::Members, Member}};
-
-
+use crate::{subsystem::wsb::WSB, error::Error, task::{tasks::Tasks, task_id::TaskId}, member::members::Members};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Project {
@@ -32,8 +30,29 @@ impl Project {
         self.members.add_member(name)
     }
 
-    pub fn wsb(&mut self) -> &mut WSB {
-        &mut self.wsb
+    pub fn remove_member(&mut self, name: &str) -> Result<(), Error> {
+
+        self.members
+            .get(name)?
+            .clone()
+            .tasks()
+            .try_for_each(|id| {
+                self.remove_member_from_task(&id, name)
+            })?;
+        self.members.remove_member(name);
+        Ok(())
+    }
+
+    pub fn assign_task_to_member(&mut self, id: TaskId, name: &str) -> Result<(), Error> {
+        self.wsb.assign_task_to_member(&id, name, &mut self.tasks)?;
+        self.members.assign_task_to_member(id, name)?;
+        Ok(())
+    }
+
+    pub fn remove_member_from_task(&mut self, id: &TaskId, name: &str) -> Result<(), Error> {
+        self.wsb.remove_member_from_task(&id, name, &mut self.tasks)?;
+        self.members.remove_member_from_task(&id, name)?;
+        Ok(())
     }
 
     pub fn name(&self) -> &str {
