@@ -1,56 +1,11 @@
-use std::{path::PathBuf, str::FromStr, collections::HashMap};
+use std::{path::PathBuf, str::FromStr};
 
-use serde::{Deserialize, Serialize, de::{Visitor, self}, ser::SerializeMap};
+use serde::{Deserialize, Serialize};
 
 use std::io::Write;
 
-use crate::{subsystem::{wsb::WSB, member::Member}, error::Error, task::tasks::Tasks};
-#[derive(Debug, Clone)]
-pub struct Members(HashMap<String, Member>);
+use crate::{subsystem::wsb::WSB, error::Error, task::tasks::Tasks, member::{members::Members, Member}};
 
-impl Serialize for Members {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer {
-            let mut map = serializer.serialize_map(Some(self.0.len()))?;
-            for (k, v) in &self.0 {
-                map.serialize_entry(&k.to_string(), &v)?;
-            }
-            map.end()
-    }
-}
-
-struct MembersVisitor;
-
-impl<'de> Visitor<'de> for MembersVisitor {
-    type Value = Members;
-
-    fn expecting(&self, formatter: &mut serde::__private::fmt::Formatter) -> serde::__private::fmt::Result {
-        formatter.write_str("HashMap with String as key and Member as value")
-    }
-
-    fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
-    where
-        M: de::MapAccess<'de>,
-    {
-        let mut members : HashMap<String, Member> = HashMap::with_capacity(access.size_hint().unwrap_or(0));
-
-        while let Some((key, value)) = access.next_entry()? {
-            members.insert(key, value);
-        }
-
-        Ok(Members(members))
-    }
-}
-
-impl<'de> Deserialize<'de> for Members {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de> {
-
-        deserializer.deserialize_map(MembersVisitor {})
-    }
-}
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -69,8 +24,12 @@ impl Project {
         Self {
             wsb,
             tasks,
-            members: Members(HashMap::new())
+            members: Members::new()
         }
+    }
+
+    pub fn add_member(&mut self, name: &str) {
+        self.members.add_member(name)
     }
 
     pub fn wsb(&mut self) -> &mut WSB {

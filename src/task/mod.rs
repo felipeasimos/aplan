@@ -99,8 +99,8 @@ impl Task {
 impl Display for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.id().as_vec().last() {
-            Some(_) => write!(f, "{} - {} pv: {}, ac: {} {}", self.id().to_string(), self.name(), self.planned_value, self.actual_cost, self.status.to_icon()),
-            None => write!(f, "{} pv: {}, ac: {} {}", self.name().to_string(), self.planned_value, self.actual_cost, self.status.to_icon()),
+            Some(_) => write!(f, "{} - {} {}", self.id().to_string(), self.name(), self.status.to_icon()),
+            None => write!(f, "{} {}", self.name().to_string(), self.status.to_icon()),
         }
     }
 }

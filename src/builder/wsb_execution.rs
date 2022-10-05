@@ -75,8 +75,8 @@ impl WSBExecution {
             .into_iter()
             .try_for_each(|action| -> Result<(), Error> {
                 match &action {
-                    WSBAction::Dot(filename) => { util::to_file(filename.as_deref(), project.wsb.to_dot_str(&mut project.tasks)); },
-                    WSBAction::Tree(filename) => { util::to_file(filename.as_deref(), project.wsb.to_tree_str(&mut project.tasks)); },
+                    WSBAction::Dot(filename) => { results.push(Return::VisualizationDot(filename.clone(), project.wsb.to_dot_str(&mut project.tasks))); },
+                    WSBAction::Tree(filename) => { results.push(Return::VisualizationTree(filename.clone(), project.wsb.to_tree_str(&mut project.tasks))); },
                     WSBAction::Add(parent_id, name) => { project.wsb.add_task(parent_id.clone(), &name, &mut project.tasks); },
                     WSBAction::Remove(id) => { project.wsb.remove(&id, &mut project.tasks); },
                     WSBAction::Done(id, cost) => { project.wsb.set_actual_cost(&id, *cost, &mut project.tasks); },

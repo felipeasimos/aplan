@@ -1,6 +1,8 @@
+pub mod members;
+
 use serde::{Serialize, Deserialize};
 
-use super::schedule::Schedule;
+use crate::subsystem::schedule::Schedule;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Member {
@@ -9,9 +11,9 @@ pub struct Member {
 }
 
 impl Member {
-    fn new(name: String) -> Self {
+    pub fn new(name: &str) -> Self {
         Self {
-            name,
+            name: name.to_string(),
             schedule: Schedule::new()
         }
     }

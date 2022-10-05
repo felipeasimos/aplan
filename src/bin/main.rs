@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand};
-use aplan::{builder::project_execution::{ProjectExecution, Return}, task::task_id::TaskId, error::Error};
+use aplan::{builder::project_execution::{ProjectExecution, Return}, task::task_id::TaskId, error::Error, util};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -27,6 +27,11 @@ enum Commands {
     Burndown {
 
     },
+    /// Manage project members
+    Member {
+        #[clap(subcommand)]
+        command: MemberCommands
+    },
     /// Create project file
     Init {
     }
@@ -51,6 +56,16 @@ impl FromStr for ShowFormat {
 }
 
 #[derive(Subcommand)]
+enum MemberCommands {
+    /// Add member to project
+    Add {
+        /// Name of the member
+        #[clap(value_parser)]
+        name: String
+    }
+}
+
+#[derive(Subcommand)]
 enum WSBCommands {
 
     /// Visualize the WSB
@@ -69,19 +84,19 @@ enum WSBCommands {
         #[clap(short, long, value_parser = task_id_parser)]
         parent: Option<TaskId>,
         /// Name of the task
-        #[clap(short, long, value_parser)]
+        #[clap(value_parser)]
         name: String
     },
     /// Remove task from WSB
     Remove {
         /// Id to the task to remove
-        #[clap(short, long, value_parser = task_id_parser)]
+        #[clap(value_parser = task_id_parser)]
         id: TaskId,
     },
     /// Mark a task as done
     Done {
         /// Task id
-        #[clap(short, long, value_parser = task_id_parser)]
+        #[clap(value_parser = task_id_parser)]
         id: TaskId,
         /// Cost it took to complete task
         #[clap(value_parser)]
@@ -90,7 +105,7 @@ enum WSBCommands {
     /// Set value of a task
     PlannedValue {
         /// Task id
-        #[clap(short, long, value_parser = task_id_parser)]
+        #[clap(value_parser = task_id_parser)]
         id: TaskId,
         /// Value of the task
         #[clap(value_parser)]
@@ -99,7 +114,7 @@ enum WSBCommands {
     /// Get info about a task
     GetTask {
         /// Task id
-        #[clap(short, long, value_parser = task_id_parser)]
+        #[clap(value_parser = task_id_parser)]
         id: TaskId
     },
 }
@@ -108,66 +123,84 @@ fn task_id_parser(s: &str) -> Result<TaskId, String> {
     TaskId::parse(s).or_else(|_| Err(s.to_string()))
 }
 
+fn process_wsb(command: &WSBCommands, project_name: &str) -> Result<ProjectExecution, Error> {
+    Ok(match command {
+        WSBCommands::Show { format, output } => {
+            ProjectExecution::load(&project_name)?
+                .wsb(|wsb| {
+                    match format {
+                        ShowFormat::Dot => wsb.dot(output.as_deref()),
+                        ShowFormat::Text => wsb.tree(output.as_deref()),
+                    };
+                })
+        },
+        WSBCommands::Add { parent, name } => {
+            ProjectExecution::load(&project_name)?
+                .wsb(|wsb| {
+                    wsb.add(parent.as_ref().unwrap_or(&TaskId::get_root_id()), name);
+                })
+        },
+        WSBCommands::Remove { id } => {
+            ProjectExecution::load(&project_name)?
+                .wsb(|wsb| {
+                    wsb.remove(&id);
+                })
+        },
+        WSBCommands::Done { id, cost } => {
+            ProjectExecution::load(&project_name)?
+                .wsb(|wsb| {
+                    wsb.done(&id, *cost);
+                })
+        },
+        WSBCommands::PlannedValue { id, value } => {
+            ProjectExecution::load(&project_name)?
+                .wsb(|wsb| {
+                    wsb.planned_value(&id, *value);
+                })
+        },
+        WSBCommands::GetTask { id } => {
+            ProjectExecution::load(&project_name)?
+                .wsb(|wsb| {
+                    wsb.get_task(&id);
+                })
+        }
+    })
+}
+
+fn process_member(command: &MemberCommands, project_name: &str) -> Result<ProjectExecution, Error> {
+    Ok(match command {
+        MemberCommands::Add { name } => {
+            ProjectExecution::load(&project_name)?
+            .add_member(name)
+        },
+    })
+}
+
 fn process_args(cli: Cli) -> Result<(), Error>  {
 
+    let project_name = &cli.project;
     match &cli.command {
         Commands::Burndown {  } => todo!(),
         Commands::Init { .. } => {
             ProjectExecution::new(&cli.project)
         },
-        Commands::WSB { command } => match command {
-            WSBCommands::Show { format, output } => {
-                ProjectExecution::load(&cli.project)?
-                    .wsb(|wsb| {
-                        match format {
-                            ShowFormat::Dot => wsb.dot(output.as_deref()),
-                            ShowFormat::Text => wsb.tree(output.as_deref()),
-                        };
-                    })
-            },
-            WSBCommands::Add { parent, name } => {
-                ProjectExecution::load(&cli.project)?
-                    .wsb(|wsb| {
-                        wsb.add(parent.as_ref().unwrap_or(&TaskId::get_root_id()), name);
-                    })
-            },
-            WSBCommands::Remove { id } => {
-                ProjectExecution::load(&cli.project)?
-                    .wsb(|wsb| {
-                        wsb.remove(&id);
-                    })
-            },
-            WSBCommands::Done { id, cost } => {
-                ProjectExecution::load(&cli.project)?
-                    .wsb(|wsb| {
-                        wsb.done(&id, *cost);
-                    })
-            },
-            WSBCommands::PlannedValue { id, value } => {
-                ProjectExecution::load(&cli.project)?
-                    .wsb(|wsb| {
-                        wsb.planned_value(&id, *value);
-                    })
-            },
-            WSBCommands::GetTask { id } => {
-                ProjectExecution::load(&cli.project)?
-                    .wsb(|wsb| {
-                        wsb.get_task(&id);
-                    })
-            }
+        Commands::Member { command } => {
+            process_member(command, project_name)?
         },
+        Commands::WSB { command } => {
+            process_wsb(command, project_name)?
+        }
     }
     .save()
     .run()?
-    // get results from operation that have something to return (some info to display)
     .iter()
     .try_for_each(|res| -> Result<(), Error> {
         match res {
             Return::Task(task) => {
                 println!("{}", task.to_string())
             }
-            Return::Text(text_str) => {
-                println!("{}", text_str.to_string())
+            Return::VisualizationDot(filename, text) | Return::VisualizationTree(filename, text) => {
+                util::to_file(filename.as_deref(), text.to_string())
             },
         }
         Ok(())

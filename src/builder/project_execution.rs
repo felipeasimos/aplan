@@ -6,12 +6,14 @@ use super::wsb_execution::WSBExecution;
 enum ProjectAction {
     Save,
     SaveTo(String),
+    AddMember(String),
     RunWSBBuilder(WSBExecution),
 }
 
 pub enum Return {
     Task(Task),
-    Text(String)
+    VisualizationDot(Option<String>, String),
+    VisualizationTree(Option<String>, String)
 }
 
 pub struct ProjectExecution {
@@ -40,6 +42,11 @@ impl ProjectExecution {
         self
     }
 
+    pub fn add_member(mut self, name: &str) -> Self {
+        self.actions.push(ProjectAction::AddMember(name.to_string()));
+        self
+    }
+
     pub fn wsb<F: FnMut(&mut WSBExecution)>(mut self, mut func: F) -> Self {
         let mut wsb_execution = WSBExecution::new();
         func(&mut wsb_execution);
@@ -55,6 +62,7 @@ impl ProjectExecution {
                 match action {
                     ProjectAction::Save => { self.project.save(); },
                     ProjectAction::SaveTo(filename) => { self.project.save_to(&filename); },
+                    ProjectAction::AddMember(name) => { self.project.add_member(&name); },
                     ProjectAction::RunWSBBuilder(wsb_execution) => { results.append(&mut wsb_execution.run(&mut self.project)?); },
                 }
                 Ok(())
