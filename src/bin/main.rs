@@ -247,7 +247,9 @@ fn process_args(cli: Cli) -> Result<(), Error>  {
     })
 }
 
-fn main() -> Result<(), Error> {
+fn main() {
     let cli = Cli::parse();
-    process_args(cli)
+    if let Err(e) = process_args(cli) {
+        println!("Error: {}", e);
+    }
 }
