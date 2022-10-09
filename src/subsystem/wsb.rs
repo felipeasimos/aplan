@@ -1,7 +1,8 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
-use crate::task::tasks::Tasks;
 use crate::task::{Task, TaskStatus};
 use crate::task::task_id::TaskId;
 use crate::util;
@@ -10,7 +11,7 @@ use crate::util;
 pub struct WSB {}
 
 impl WSB {
-    pub fn new(name: &str, map: &mut Tasks) -> Self {
+    pub fn new(name: &str, map: &mut HashMap<TaskId, Task>) -> Self {
         let root_id = TaskId::get_root_id();
         let root_task = Task::new(root_id.clone(), name);
         map.insert(root_id, root_task);
@@ -19,31 +20,31 @@ impl WSB {
 
     /// SAFETY: uses `unwrap` instead of returning an error because a root node should always
     /// exists
-    pub fn name<'a>(&'a self, tasks: &'a Tasks) -> &str {
+    pub fn name<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> &str {
         tasks.get(&TaskId::get_root_id()).unwrap().name()
     }
 
     /// SAFETY: uses `unwrap` instead of returning an error because a root node should always
     /// exists
-    pub fn planned_value(&self, tasks: &Tasks) -> f64 {
+    pub fn planned_value(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
         tasks.get(&TaskId::get_root_id()).unwrap().get_planned_value()
     }
 
     /// SAFETY: uses `unwrap` instead of returning an error because a root node should always
     /// exists
-    pub fn actual_cost(&self, tasks: &Tasks) -> f64 {
+    pub fn actual_cost(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
         tasks.get(&TaskId::get_root_id()).unwrap().get_actual_cost()
     }
 
-    pub fn completion_percentage(&self, tasks: &Tasks) -> f64 {
+    pub fn completion_percentage(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
         self.done_tasks(tasks).len() as f64 / tasks.len() as f64
     }
 
-    pub fn earned_value(&self, tasks: &Tasks) -> f64 {
+    pub fn earned_value(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
         self.planned_value(tasks) * self.completion_percentage(tasks)
     }
 
-    pub fn spi(&self, tasks: &Tasks) -> f64 {
+    pub fn spi(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
         let res = self.earned_value(tasks) / self.planned_value(tasks);
         if res.is_nan() {
             0.0
@@ -52,11 +53,11 @@ impl WSB {
         }
     }
 
-    pub fn sv(&self, tasks: &Tasks) -> f64 {
+    pub fn sv(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
         self.earned_value(tasks) - self.planned_value(tasks)
     }
 
-    pub fn cpi(&self, tasks: &Tasks) -> f64 {
+    pub fn cpi(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
         let res = self.earned_value(tasks) / self.actual_cost(tasks);
         if res.is_nan() {
             0.0
@@ -65,19 +66,19 @@ impl WSB {
         }
     }
 
-    pub fn cv(&self, tasks: &Tasks) -> f64 {
+    pub fn cv(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
         self.earned_value(tasks) - self.actual_cost(tasks)
     }
 
-    pub fn get_task<'a>(&'a self, task_id: &TaskId, tasks: &'a Tasks) -> Result<&Task, Error> {
+    pub fn get_task<'a>(&'a self, task_id: &TaskId, tasks: &'a HashMap<TaskId, Task>) -> Result<&Task, Error> {
         tasks.get(&task_id).ok_or_else(|| Error::TaskNotFound(task_id.clone()))
     }
 
-    pub fn get_task_mut<'a>(&'a mut self, task_id: &TaskId, tasks: &'a mut Tasks) -> Result<&mut Task, Error> {
+    pub fn get_task_mut<'a>(&'a mut self, task_id: &TaskId, tasks: &'a mut HashMap<TaskId, Task>) -> Result<&mut Task, Error> {
         tasks.get_mut(&task_id).ok_or_else(|| Error::TaskNotFound(task_id.clone()))
     }
 
-    pub fn next_sibling<'a>(&'a self, task_id: &TaskId, tasks: &'a Tasks) -> Result<&Task, Error> {
+    pub fn next_sibling<'a>(&'a self, task_id: &TaskId, tasks: &'a HashMap<TaskId, Task>) -> Result<&Task, Error> {
         let parent = self.get_task(&task_id.parent()?, tasks)?;
         let last_child_idx = &parent.num_child;
         if Some(last_child_idx) == task_id.as_vec().last() {
@@ -87,7 +88,7 @@ impl WSB {
         self.get_task(&next_sibling_id, tasks)
     }
 
-    pub fn prev_sibling<'a>(&'a self, task_id: &TaskId, tasks: &'a Tasks) -> Result<&Task, Error> {
+    pub fn prev_sibling<'a>(&'a self, task_id: &TaskId, tasks: &'a HashMap<TaskId, Task>) -> Result<&Task, Error> {
         if Some(&1) == task_id.as_vec().get(0) {
             return Err(Error::NoPrevSibling(task_id.clone()))
         }
@@ -98,7 +99,7 @@ impl WSB {
         self.get_task(&prev_sibling_id, tasks)
     }
 
-    pub fn add_task<'a>(&'a mut self, parent_task_id: TaskId, name: &str, tasks: &'a mut Tasks) -> Result<&mut Task, Error> {
+    pub fn add_task<'a>(&'a mut self, parent_task_id: TaskId, name: &str, tasks: &'a mut HashMap<TaskId, Task>) -> Result<&mut Task, Error> {
         // get parent
         let parent_task = self.get_task_mut(&parent_task_id, tasks)?;
 
@@ -122,7 +123,7 @@ impl WSB {
         self.get_task_mut(&task_id, tasks)
     }
 
-    pub fn assign_task_to_member<'a>(&'a mut self, task_id: &TaskId, name: &str, tasks: &'a mut Tasks) -> Result<(), Error> {
+    pub fn assign_task_to_member<'a>(&'a mut self, task_id: &TaskId, name: &str, tasks: &'a mut HashMap<TaskId, Task>) -> Result<(), Error> {
         if self.get_task(task_id, tasks)?.is_trunk() {
             return Err(Error::TrunkCannotAddMember(task_id.clone()))
         }
@@ -132,7 +133,7 @@ impl WSB {
         }, tasks)
     }
 
-    pub fn remove_member_from_task<'a>(&'a mut self, task_id: &TaskId, name: &str, tasks: &'a mut Tasks) -> Result<(), Error> {
+    pub fn remove_member_from_task<'a>(&'a mut self, task_id: &TaskId, name: &str, tasks: &'a mut HashMap<TaskId, Task>) -> Result<(), Error> {
         let task = self.get_task(task_id, tasks)?;
         if task.is_trunk() {
             return Err(Error::TrunkCannotRemoveMember(task_id.clone()))
@@ -145,14 +146,14 @@ impl WSB {
         }, tasks)
     }
 
-    pub fn expand<const N: usize>(&mut self, arr: &[(&str, &str); N], tasks: &mut Tasks) -> Result<&mut Self, Error> {
+    pub fn expand<const N: usize>(&mut self, arr: &[(&str, &str); N], tasks: &mut HashMap<TaskId, Task>) -> Result<&mut Self, Error> {
         for (parent_id, task_name) in arr {
             self.add_task(TaskId::parse(parent_id)?, task_name, tasks)?;
         }
         Ok(self)
     }
 
-    fn apply_along_path<F: Fn(&mut Task)>(&mut self, id: &TaskId, func: F, tasks: &mut Tasks) -> Result<(), Error> {
+    fn apply_along_path<F: Fn(&mut Task)>(&mut self, id: &TaskId, func: F, tasks: &mut HashMap<TaskId, Task>) -> Result<(), Error> {
         id
             .path()
             .iter()
@@ -163,7 +164,7 @@ impl WSB {
             })
     }
 
-    fn subtract_id(&mut self, child_id: &TaskId, layer_idx: usize, tasks: &mut Tasks) -> Result<(), Error> {
+    fn subtract_id(&mut self, child_id: &TaskId, layer_idx: usize, tasks: &mut HashMap<TaskId, Task>) -> Result<(), Error> {
         let num_child = self.get_task(child_id, tasks)?.num_child;
         let old_task_id = child_id.clone();
         let mut new_task_id = child_id.clone();
@@ -180,7 +181,7 @@ impl WSB {
         })
     }
 
-    pub fn remove(&mut self, task_id: &TaskId, tasks: &mut Tasks) -> Result<Task, Error> {
+    pub fn remove(&mut self, task_id: &TaskId, tasks: &mut HashMap<TaskId, Task>) -> Result<Task, Error> {
         // don't remove if this is a trunk node
         let mut task_id = task_id.clone();
         if self.get_task(&task_id, tasks)?.num_child > 0 {
@@ -216,14 +217,14 @@ impl WSB {
         Ok(task)
     }
 
-    fn remove_task_stats_from_tasks(&mut self, task_id: &TaskId, tasks: &mut Tasks) -> Result<(), Error> {
+    fn remove_task_stats_from_tasks(&mut self, task_id: &TaskId, tasks: &mut HashMap<TaskId, Task>) -> Result<(), Error> {
 
         self.set_actual_cost(&task_id, 0.0, tasks)?;
         self.set_planned_value(&task_id, 0.0, tasks)?;
         Ok(())
     }
 
-    fn children_are_done(&self, task_id: &TaskId, tasks: &Tasks) -> bool {
+    fn children_are_done(&self, task_id: &TaskId, tasks: &HashMap<TaskId, Task>) -> bool {
         tasks.get(task_id).unwrap()
             .child_ids()
             .iter()
@@ -231,7 +232,7 @@ impl WSB {
             .is_none()
     }
 
-    pub fn set_actual_cost(&mut self, task_id: &TaskId, actual_cost: f64, tasks: &mut Tasks) -> Result<(), Error> {
+    pub fn set_actual_cost(&mut self, task_id: &TaskId, actual_cost: f64, tasks: &mut HashMap<TaskId, Task>) -> Result<(), Error> {
         let parent_id = task_id.parent()?;
         {
             let mut task = self.get_task_mut(&task_id, tasks)?;
@@ -260,7 +261,7 @@ impl WSB {
             })
     }
 
-    pub fn set_planned_value(&mut self, task_id: &TaskId, planned_value: f64, tasks: &mut Tasks) -> Result<(), Error> {
+    pub fn set_planned_value(&mut self, task_id: &TaskId, planned_value: f64, tasks: &mut HashMap<TaskId, Task>) -> Result<(), Error> {
         let parent_id = task_id.parent()?;
         let mut task = self.get_task_mut(&task_id, tasks)?;
         // can't set actual cost of trunk node
@@ -276,7 +277,7 @@ impl WSB {
         }, tasks)
     }
 
-    pub fn to_dot_str(&self, tasks: &Tasks) -> String {
+    pub fn to_dot_str(&self, tasks: &HashMap<TaskId, Task>) -> String {
         let stats = format!(
             "earned value: {}, spi: {}, sv: {}, cpi: {}, cv: {}",
             self.earned_value(tasks),
@@ -290,7 +291,7 @@ impl WSB {
             self.subtasks_to_dot_str(&TaskId::get_root_id(), tasks))
     }
 
-    fn subtasks_to_dot_str(&self, root_id: &TaskId, tasks: &Tasks) -> String {
+    fn subtasks_to_dot_str(&self, root_id: &TaskId, tasks: &HashMap<TaskId, Task>) -> String {
         let mut s = String::new();
         let root = tasks.get(root_id).unwrap();
         let root_str = root.to_string();
@@ -303,7 +304,7 @@ impl WSB {
         s
     }
 
-    fn subtasks_to_tree_str(&self, root_id: &TaskId, prefix: &str, tasks: &Tasks) -> String {
+    fn subtasks_to_tree_str(&self, root_id: &TaskId, prefix: &str, tasks: &HashMap<TaskId, Task>) -> String {
         let mut s = String::new();
         let root = tasks.get(root_id).unwrap();
 
@@ -324,7 +325,7 @@ impl WSB {
         s
     }
 
-    pub fn to_tree_str(&self, tasks: &Tasks) -> String {
+    pub fn to_tree_str(&self, tasks: &HashMap<TaskId, Task>) -> String {
         let root_id = &TaskId::get_root_id();
         let root = tasks.get(root_id).unwrap();
         format!(
@@ -333,39 +334,39 @@ impl WSB {
             self.subtasks_to_tree_str(&TaskId::get_root_id(), "", tasks))
     }
 
-    pub fn tasks<'a>(&'a self, tasks: &'a Tasks) -> Vec<&Task> {
+    pub fn tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> Vec<&Task> {
         tasks
             .values()
             .filter(|task| task.is_leaf())
             .collect::<Vec<&Task>>()
     }
 
-    pub fn todo_tasks<'a>(&'a self, tasks: &'a Tasks) -> Vec<&Task> {
+    pub fn todo_tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> Vec<&Task> {
         tasks
             .values()
             .filter(|task| task.is_leaf() && task.status != TaskStatus::Done)
             .collect::<Vec<&Task>>()
     }
 
-    pub fn in_progress_tasks<'a>(&'a self, tasks: &'a Tasks) -> Vec<&Task> {
+    pub fn in_progress_tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> Vec<&Task> {
         tasks
             .values()
             .filter(|task| task.is_leaf() && task.status == TaskStatus::InProgress)
             .collect::<Vec<&Task>>()
     }
 
-    pub fn done_tasks<'a>(&'a self, tasks: &'a Tasks) -> Vec<&Task> {
+    pub fn done_tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> Vec<&Task> {
         tasks
             .values()
             .filter(|task| task.is_leaf() && task.status == TaskStatus::Done)
             .collect::<Vec<&Task>>()
     }
 
-    pub fn to_dot_file(&self, filename: Option<&str>, tasks: &mut Tasks) {
+    pub fn to_dot_file(&self, filename: Option<&str>, tasks: &mut HashMap<TaskId, Task>) {
         util::to_file(filename, self.to_dot_str(tasks))
     }
 
-    pub fn to_tree_file(&self, filename: Option<&str>, tasks: &mut Tasks) {
+    pub fn to_tree_file(&self, filename: Option<&str>, tasks: &mut HashMap<TaskId, Task>) {
         util::to_file(filename, self.to_tree_str(tasks))
     }
 }
@@ -377,7 +378,7 @@ mod tests {
 
     #[test]
     fn tasks() {
-        let mut tasks = Tasks::new();
+        let mut tasks = HashMap::new();
         let map = &mut tasks;
         let mut wsb = WSB::new("Project", map);
 

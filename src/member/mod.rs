@@ -1,15 +1,17 @@
-pub mod members;
-
-use std::collections::{HashSet, hash_set::Iter};
+use std::collections::{hash_set::Iter, HashSet};
 
 use serde::{Serialize, Deserialize};
+use serde_with::serde_as;
 
-use crate::{subsystem::schedule::Schedule, task::task_id::TaskId};
+use crate::task::task_id::TaskId;
+use crate::subsystem::schedule::Schedule;
 
+#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Member {
     name: String,
-    schedule: Schedule,
+    // schedule: Schedule,
+    #[serde_as(as = "HashSet<_>")]
     tasks: HashSet<TaskId>
 }
 
@@ -17,7 +19,7 @@ impl Member {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            schedule: Schedule::new(),
+            // schedule: Schedule::new(),
             tasks: HashSet::new()
         }
     }

@@ -1,9 +1,9 @@
 pub mod task_id;
-pub mod tasks;
 
 use std::{fmt::Display, collections::HashSet};
 
 use serde::{Serialize, Deserialize};
+use serde_with::serde_as;
 
 use self::task_id::TaskId;
 
@@ -32,8 +32,8 @@ impl TaskStatus {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-#[derive(Clone, Debug)]
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Task {
     name: String,
     pub(crate) id: TaskId,
@@ -41,6 +41,7 @@ pub struct Task {
     pub(crate) actual_cost: f64,
     pub(crate) num_child: u32,
     pub(crate) status: TaskStatus,
+    #[serde_as(as = "HashSet<_>")]
     members_names: HashSet<String>
 }
 
