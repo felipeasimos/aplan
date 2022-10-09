@@ -11,7 +11,7 @@ use crate::subsystem::schedule::Schedule;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Member {
     name: String,
-    // schedule: Schedule,
+    schedule: Schedule,
     #[serde_as(as = "HashSet<_>")]
     tasks: HashSet<TaskId>
 }
@@ -20,7 +20,7 @@ impl Member {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            // schedule: Schedule::new(),
+            schedule: Schedule::new(),
             tasks: HashSet::new()
         }
     }
