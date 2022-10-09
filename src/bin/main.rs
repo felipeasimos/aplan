@@ -196,6 +196,7 @@ fn process_member(command: &MemberCommands, project_name: &str) -> Result<Projec
     Ok(match command {
         MemberCommands::List {  } => {
             ProjectExecution::load(&project_name)?
+            .list_members()
         },
         MemberCommands::Add { name } => {
             ProjectExecution::load(&project_name)?
@@ -241,6 +242,9 @@ fn process_args(cli: Cli) -> Result<(), Error>  {
             }
             Return::VisualizationDot(filename, text) | Return::VisualizationTree(filename, text) => {
                 util::to_file(filename.as_deref(), text.to_string())
+            },
+            Return::MembersList(members) => {
+                members.iter().for_each(|member| println!("{}", member))
             },
         }
         Ok(())

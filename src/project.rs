@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr, collections::HashMap};
+use std::{path::PathBuf, str::FromStr, collections::{HashMap, hash_map::Iter}};
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -38,6 +38,10 @@ impl Project {
     pub fn get_member_mut(&mut self, name: &str) -> Result<&mut Member, Error> {
         self.members.get_mut(name)
             .ok_or_else(|| Error::MemberNotFound(name.to_string()))
+    }
+
+    pub fn members(&self) -> impl Iterator<Item=Member> + '_ {
+        self.members.values().map(|v| v.clone())
     }
 
     pub fn add_member(&mut self, name: &str) {

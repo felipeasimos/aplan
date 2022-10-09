@@ -1,4 +1,4 @@
-use crate::{project::Project, task::{Task, task_id::TaskId}, error::Error};
+use crate::{project::Project, task::{Task, task_id::TaskId}, error::Error, member::Member};
 
 use super::wsb_execution::WSBExecution;
 
@@ -10,13 +10,15 @@ enum ProjectAction {
     RemoveMember(String),
     AssignTaskToMember(TaskId, String),
     RemoveMemberFromTask(TaskId, String),
+    ListMembers,
     RunWSBBuilder(WSBExecution),
 }
 
 pub enum Return {
     Task(Task),
     VisualizationDot(Option<String>, String),
-    VisualizationTree(Option<String>, String)
+    VisualizationTree(Option<String>, String),
+    MembersList(Vec<Member>)
 }
 
 pub struct ProjectExecution {
@@ -70,6 +72,11 @@ impl ProjectExecution {
         self
     }
 
+    pub fn list_members(mut self) -> Self {
+        self.actions.push(ProjectAction::ListMembers);
+        self
+    }
+
     pub fn wsb<F: FnMut(&mut WSBExecution)>(mut self, mut func: F) -> Self {
         let mut wsb_execution = WSBExecution::new();
         func(&mut wsb_execution);
@@ -89,6 +96,7 @@ impl ProjectExecution {
                     ProjectAction::RemoveMember(name) => { self.project.remove_member(&name)?; },
                     ProjectAction::AssignTaskToMember(task_id, name) => { self.project.assign_task_to_member(task_id, &name)?; },
                     ProjectAction::RemoveMemberFromTask(task_id, name) => { self.project.remove_member_from_task(&task_id, &name)?; },
+                    ProjectAction::ListMembers => { results.push(Return::MembersList(self.project.members().collect::<Vec<Member>>())); },
                     ProjectAction::RunWSBBuilder(wsb_execution) => { results.append(&mut wsb_execution.run(&mut self.project)?); },
                 }
                 Ok(())

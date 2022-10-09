@@ -1,4 +1,5 @@
 use std::collections::{hash_set::Iter, HashSet};
+use std::fmt::Display;
 
 use serde::{Serialize, Deserialize};
 use serde_with::serde_as;
@@ -34,5 +35,11 @@ impl Member {
 
     pub fn tasks(&self) -> Iter<'_, TaskId> {
         self.tasks.iter()
+    }
+}
+
+impl Display for Member {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
     }
 }
