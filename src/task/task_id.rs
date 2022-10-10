@@ -24,10 +24,6 @@ impl TaskId {
         &mut self.id
     }
 
-    pub fn to_vec(self) -> Vec<u32> {
-        self.id
-    }
-
     pub fn child_idx(&self) -> Result<u32, Error> {
         self.id
             .last()
@@ -56,17 +52,17 @@ impl TaskId {
         Ok(TaskId::new(parent_vec))
     }
 
-    pub fn child_ids(&self, num_childs: u32) -> Vec<TaskId> {
+    pub fn child_ids(&self, num_childs: u32) -> impl Iterator<Item=TaskId> + '_ {
 
         let id_vec = self.as_vec();
         (1..num_childs+1).map(|child_index| {
             let mut vec = id_vec.clone();
             vec.push(child_index);
             TaskId::new(vec)
-        }).collect::<Vec<TaskId>>()
+        }).into_iter()
     }
 
-    pub fn path(&self) -> Vec<TaskId> {
+    pub fn path(&self) -> impl Iterator<Item=TaskId> + DoubleEndedIterator + '_ {
 
         let id_iter = self.id
             .iter()
@@ -79,7 +75,6 @@ impl TaskId {
         std::iter::once(Self::get_root_id())
             .chain(id_iter)
             .into_iter()
-            .collect::<Vec<TaskId>>()
     }
 
     pub fn new_child_id(&self, child_num: u32) -> TaskId {

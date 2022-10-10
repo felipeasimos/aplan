@@ -37,7 +37,7 @@ impl WSB {
     }
 
     pub fn completion_percentage(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
-        self.done_tasks(tasks).len() as f64 / tasks.len() as f64
+        self.done_tasks(tasks).count() as f64 / tasks.len() as f64
     }
 
     pub fn earned_value(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
@@ -156,7 +156,6 @@ impl WSB {
     fn apply_along_path<F: Fn(&mut Task)>(&mut self, id: &TaskId, func: F, tasks: &mut HashMap<TaskId, Task>) -> Result<(), Error> {
         id
             .path()
-            .iter()
             .try_for_each(|id| {
                 let child = self.get_task_mut(&id, tasks)?;
                 func(child);
@@ -176,8 +175,8 @@ impl WSB {
             task
         );
 
-        child_id.child_ids(num_child).iter().try_for_each(|node_id| {
-            self.subtract_id(node_id, layer_idx, tasks)
+        child_id.child_ids(num_child).try_for_each(|node_id| {
+            self.subtract_id(&node_id, layer_idx, tasks)
         })
     }
 
@@ -189,12 +188,13 @@ impl WSB {
         }
 
         self.remove_task_stats_from_tasks(&task_id, tasks)?;
+
         let parent_id = task_id.parent()?;
-        let parent_childs = {
+        let parent_childs: _ = {
             let mut parent = self.get_task_mut(&parent_id, tasks)?;
-            let ids = parent.child_ids();
             parent.num_child -= 1;
-            ids
+            parent.id().child_ids(parent.num_child+1)
+                .collect::<Vec<TaskId>>()
         };
 
         let layer_idx = task_id.as_vec().len() - 1;
@@ -205,7 +205,7 @@ impl WSB {
         // change id of child that comes after id node
         parent_childs.iter().enumerate().try_for_each(|(index, child_id)| -> Result<(), _> {
             if child_idx < index {
-                self.subtract_id(child_id, layer_idx, tasks)?;
+                self.subtract_id(&child_id, layer_idx, tasks)?;
             }
             Ok(())
         })?;
@@ -227,7 +227,6 @@ impl WSB {
     fn children_are_done(&self, task_id: &TaskId, tasks: &HashMap<TaskId, Task>) -> bool {
         tasks.get(task_id).unwrap()
             .child_ids()
-            .iter()
             .find(|id| tasks.get(id).unwrap().status != TaskStatus::Done)
             .is_none()
     }
@@ -251,7 +250,6 @@ impl WSB {
         task_id
             .clone()
             .path()
-            .iter()
             .rev()
             .try_for_each(|id| {
                 if self.children_are_done(&id, tasks) {
@@ -296,10 +294,10 @@ impl WSB {
         let root = tasks.get(root_id).unwrap();
         let root_str = root.to_string();
 
-        root.child_ids().iter().for_each(|child_id| {
-            let child = tasks.get(child_id).unwrap();
+        root.child_ids().for_each(|child_id| {
+            let child = tasks.get(&child_id).unwrap();
             s += &format!("\t\"{}\" -> \"{}\"\n", root_str, child.to_string());
-            s += &self.subtasks_to_dot_str(child_id, tasks);
+            s += &self.subtasks_to_dot_str(&child_id, tasks);
         });
         s
     }
@@ -308,17 +306,17 @@ impl WSB {
         let mut s = String::new();
         let root = tasks.get(root_id).unwrap();
 
-        root.child_ids().iter().for_each(|child_id| {
-            let child = tasks.get(child_id).unwrap();
+        root.child_ids().for_each(|child_id| {
+            let child = tasks.get(&child_id).unwrap();
 
-            match self.next_sibling(child_id, tasks) {
+            match self.next_sibling(&child_id, tasks) {
                 Ok(_) => {
                     s += &format!("{}├─ {}\n", prefix, child);
-                    s += &self.subtasks_to_tree_str(child_id, &format!("{}│  ", prefix), tasks);
+                    s += &self.subtasks_to_tree_str(&child_id, &format!("{}│  ", prefix), tasks);
                 },
                 Err(_) => {
                     s += &format!("{}└─ {}\n", prefix, child);
-                    s += &self.subtasks_to_tree_str(child_id, &format!("{}   ", prefix), tasks);
+                    s += &self.subtasks_to_tree_str(&child_id, &format!("{}   ", prefix), tasks);
                 }
             }
         });
@@ -334,32 +332,28 @@ impl WSB {
             self.subtasks_to_tree_str(&TaskId::get_root_id(), "", tasks))
     }
 
-    pub fn tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> Vec<&Task> {
+    pub fn tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> impl Iterator<Item=&Task> {
         tasks
             .values()
             .filter(|task| task.is_leaf())
-            .collect::<Vec<&Task>>()
     }
 
-    pub fn todo_tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> Vec<&Task> {
+    pub fn todo_tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> impl Iterator<Item=&Task> {
         tasks
             .values()
             .filter(|task| task.is_leaf() && task.status != TaskStatus::Done)
-            .collect::<Vec<&Task>>()
     }
 
-    pub fn in_progress_tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> Vec<&Task> {
+    pub fn in_progress_tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> impl Iterator<Item=&Task> {
         tasks
             .values()
             .filter(|task| task.is_leaf() && task.status == TaskStatus::InProgress)
-            .collect::<Vec<&Task>>()
     }
 
-    pub fn done_tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> Vec<&Task> {
+    pub fn done_tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> impl Iterator<Item=&Task> {
         tasks
             .values()
             .filter(|task| task.is_leaf() && task.status == TaskStatus::Done)
-            .collect::<Vec<&Task>>()
     }
 
     pub fn to_dot_file(&self, filename: Option<&str>, tasks: &mut HashMap<TaskId, Task>) {

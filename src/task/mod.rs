@@ -82,7 +82,7 @@ impl Task {
         self.actual_cost
     }
 
-    pub fn child_ids(&self) -> Vec<TaskId> {
+    pub fn child_ids(&self) -> impl Iterator<Item=TaskId> + '_ {
         self.id().child_ids(self.num_child)
     }
 
