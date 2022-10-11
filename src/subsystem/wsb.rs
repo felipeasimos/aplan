@@ -78,24 +78,15 @@ impl WSB {
     }
 
     pub(crate) fn next_sibling<'a>(&'a self, task_id: &TaskId, tasks: &'a HashMap<TaskId, Task>) -> Result<&Task, Error> {
-        let parent = self.get_task(&task_id.parent()?, tasks)?;
-        let last_child_idx = &parent.num_child;
-        if Some(last_child_idx) == task_id.as_vec().last() {
-           return Err(Error::NoNextSibling(task_id.clone()))
-        }
-        let next_sibling_id = parent.id().new_child_id(*last_child_idx)?;
+        let next_sibling_id = task_id.next_sibling()?;
         self.get_task(&next_sibling_id, tasks)
+            .map_err(|_| Error::NoNextSibling(task_id.clone()))
     }
 
     pub(crate) fn prev_sibling<'a>(&'a self, task_id: &TaskId, tasks: &'a HashMap<TaskId, Task>) -> Result<&Task, Error> {
-        if Some(&1) == task_id.as_vec().get(0) {
-            return Err(Error::NoPrevSibling(task_id.clone()))
-        }
-
-        let prev_sibling_idx = task_id.as_vec().last().unwrap() - 1;
-        let parent = self.get_task(&task_id.parent()?, tasks)?;
-        let prev_sibling_id = parent.id().new_child_id(prev_sibling_idx)?;
+        let prev_sibling_id = task_id.prev_sibling()?;
         self.get_task(&prev_sibling_id, tasks)
+            .map_err(|_| Error::NoPrevSibling(task_id.clone()))
     }
 
     pub(crate) fn add_task<'a>(&'a mut self, parent_task_id: TaskId, name: &str, tasks: &'a mut HashMap<TaskId, Task>) -> Result<&mut Task, Error> {
