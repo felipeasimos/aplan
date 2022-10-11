@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 use crate::task::{Task, TaskStatus};
 use crate::task::task_id::TaskId;
-use crate::util;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WSB {}
@@ -197,7 +196,7 @@ impl WSB {
                 .collect::<Vec<TaskId>>()
         };
 
-        let layer_idx = task_id.as_vec().len() - 1;
+        let layer_idx = task_id.len() - 1;
         let child_idx = task_id.child_idx()? as usize - 1;
 
         let task = tasks.remove(&task_id).ok_or_else(||Error::TaskNotFound(task_id.clone()))?;
@@ -354,14 +353,6 @@ impl WSB {
         tasks
             .values()
             .filter(|task| task.is_leaf() && task.status == TaskStatus::Done)
-    }
-
-    pub fn to_dot_file(&self, filename: Option<&str>, tasks: &mut HashMap<TaskId, Task>) {
-        util::to_file(filename, self.to_dot_str(tasks))
-    }
-
-    pub fn to_tree_file(&self, filename: Option<&str>, tasks: &mut HashMap<TaskId, Task>) {
-        util::to_file(filename, self.to_tree_str(tasks))
     }
 }
 

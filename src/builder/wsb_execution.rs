@@ -15,7 +15,6 @@ enum WSBAction {
 
 #[derive(Debug, Clone)]
 pub struct WSBExecution {
-
     actions: Vec<WSBAction>
 }
 

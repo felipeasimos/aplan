@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display};
 
 use serde::{Serialize, Deserialize};
 
@@ -7,7 +7,7 @@ use crate::error::Error;
 #[derive(Serialize, Deserialize)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TaskId {
-    id: Vec<u32>
+    id: Vec<u32>,
 }
 
 impl TaskId {
@@ -24,6 +24,22 @@ impl TaskId {
         &mut self.id
     }
 
+    pub fn iter(&self) -> std::slice::Iter<'_, u32> {
+        self.id.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, u32> {
+        self.id.iter_mut()
+    }
+
+    pub fn len(&self) -> usize {
+        self.id.len()
+    }
+
+    pub fn into_iter(self) -> std::vec::IntoIter<u32> {
+        self.id.into_iter()
+    }
+
     pub fn child_idx(&self) -> Result<u32, Error> {
         self.id
             .last()
@@ -37,9 +53,9 @@ impl TaskId {
         }
         let vec = id
             .split(".")
-            .map(|n| n.parse::<u32>().ok())
-            .collect::<Option<Vec<u32>>>()
-            .ok_or_else(|| Error::BadTaskIdString(id.to_string()))?;
+            .map(|n| n.parse::<u32>())
+            .collect::<Result<Vec<u32>, _>>()
+            .or_else(|_| Err(Error::BadTaskIdString(id.to_string())))?;
         Ok(TaskId::new(vec))
     }
 
@@ -102,6 +118,12 @@ impl Display for TaskId {
     }
 }
 
+impl FromIterator<u32> for TaskId {
+    fn from_iter<T: IntoIterator<Item = u32>>(iter: T) -> Self {
+        TaskId::new(iter.into_iter().collect::<Vec<u32>>())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,6 +138,8 @@ mod tests {
 
     #[test]
     fn parse() {
+        let empty_vec : Vec<u32> = vec![];
+        assert_eq!(TaskId::parse("").unwrap().as_vec(), &empty_vec);
         assert_eq!(TaskId::parse("1.1").unwrap().as_vec(), &vec![1,1]);
         assert_eq!(TaskId::parse("4.523.123").unwrap().as_vec(), &vec![4, 523, 123]);
         assert!(TaskId::parse(".1.1").is_err());

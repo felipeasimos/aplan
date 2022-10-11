@@ -37,6 +37,7 @@ enum RoutineExceptionType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoutineException {
     t: RoutineExceptionType,
+    // #[serde(with = "custom_date")]
     date: DateTime<Utc>,
     #[serde_as(as = "serde_with::DurationSeconds<i64>")]
     duration: Duration
@@ -59,7 +60,7 @@ impl RoutineExceptions {
 /// A basic routine is set, and exceptions to it can be inserted
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Schedule {
-    #[serde(with="custom_date")]
+    // #[serde(with="custom_date")]
     start: chrono::DateTime<Utc>,
     routine: Vec<TimeSlot>,
     sprint_in_weeks: u32,

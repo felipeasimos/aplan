@@ -1,17 +1,13 @@
-use crate::{project::Project, task::{Task, task_id::TaskId}, error::Error, member::Member};
+use crate::{project::Project, task::Task, error::Error, member::Member};
 
-use super::wsb_execution::WSBExecution;
+use super::{wsb_execution::WSBExecution, member_execution::MemberExecution};
 
 #[derive(Debug)]
 enum ProjectAction {
     Save,
     SaveTo(String),
-    AddMember(String),
-    RemoveMember(String),
-    AssignTaskToMember(TaskId, String),
-    RemoveMemberFromTask(TaskId, String),
-    ListMembers,
-    RunWSBBuilder(WSBExecution),
+    RunWSB(WSBExecution),
+    RunMember(MemberExecution)
 }
 
 pub enum Return {
@@ -52,35 +48,17 @@ impl ProjectExecution {
         self
     }
 
-    pub fn add_member(mut self, name: &str) -> Self {
-        self.actions.push(ProjectAction::AddMember(name.to_string()));
-        self
-    }
-
-    pub fn remove_member(mut self, name: &str) -> Self {
-        self.actions.push(ProjectAction::RemoveMember(name.to_string()));
-        self
-    }
-
-    pub fn assign_task_to_member(mut self, id: TaskId, name: &str) -> Self {
-        self.actions.push(ProjectAction::AssignTaskToMember(id, name.to_string()));
-        self
-    }
-
-    pub fn remove_member_from_task(mut self, id: TaskId, name: &str) -> Self {
-        self.actions.push(ProjectAction::RemoveMemberFromTask(id, name.to_string()));
-        self
-    }
-
-    pub fn list_members(mut self) -> Self {
-        self.actions.push(ProjectAction::ListMembers);
-        self
-    }
-
     pub fn wsb<F: FnMut(&mut WSBExecution)>(mut self, mut func: F) -> Self {
         let mut wsb_execution = WSBExecution::new();
         func(&mut wsb_execution);
-        self.actions.push(ProjectAction::RunWSBBuilder(wsb_execution));
+        self.actions.push(ProjectAction::RunWSB(wsb_execution));
+        self
+    }
+
+    pub fn member<F: FnMut(&mut MemberExecution)>(mut self, mut func: F) -> Self {
+        let mut member_execution = MemberExecution::new();
+        func(&mut member_execution);
+        self.actions.push(ProjectAction::RunMember(member_execution));
         self
     }
 
@@ -92,12 +70,8 @@ impl ProjectExecution {
                 match action {
                     ProjectAction::Save => { self.project.save()?; },
                     ProjectAction::SaveTo(filename) => { self.project.save_to(&filename)?; },
-                    ProjectAction::AddMember(name) => { self.project.add_member(&name); },
-                    ProjectAction::RemoveMember(name) => { self.project.remove_member(&name)?; },
-                    ProjectAction::AssignTaskToMember(task_id, name) => { self.project.assign_task_to_member(task_id, &name)?; },
-                    ProjectAction::RemoveMemberFromTask(task_id, name) => { self.project.remove_member_from_task(&task_id, &name)?; },
-                    ProjectAction::ListMembers => { results.push(Return::MembersList(self.project.members().collect::<Vec<Member>>())); },
-                    ProjectAction::RunWSBBuilder(wsb_execution) => { results.append(&mut wsb_execution.run(&mut self.project)?); },
+                    ProjectAction::RunWSB(wsb_execution) => { results.append(&mut wsb_execution.run(&mut self.project)?); },
+                    ProjectAction::RunMember(member_execution) => { results.append(&mut member_execution.run(&mut self.project)?); },
                 }
                 Ok(())
             })?;

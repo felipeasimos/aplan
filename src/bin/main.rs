@@ -196,23 +196,33 @@ fn process_member(command: &MemberCommands, project_name: &str) -> Result<Projec
     Ok(match command {
         MemberCommands::List {  } => {
             ProjectExecution::load(&project_name)?
-            .list_members()
+            .member(|member| {
+                member.list_members();
+            })
         },
         MemberCommands::Add { name } => {
             ProjectExecution::load(&project_name)?
-            .add_member(name)
+            .member(|member| {
+                member.add_member(name);
+            })
         },
         MemberCommands::Remove { name } => {
             ProjectExecution::load(&project_name)?
-            .remove_member(name)
+            .member(|member| {
+                member.remove_member(name);
+            })
         },
         MemberCommands::Assign { name, id } => {
             ProjectExecution::load(&project_name)?
-            .assign_task_to_member(id.clone(), name)
+            .member(|member| {
+                member.assign_task_to_member(id.clone(), name);
+            })
         },
         MemberCommands::RemoveTask { name, id } => {
             ProjectExecution::load(&project_name)?
-            .remove_member_from_task(id.clone(), name)
+            .member(|member| {
+                member.remove_member_from_task(id.clone(), name);
+            })
         },
     })
 }
