@@ -17,6 +17,8 @@ pub enum Return {
     MembersList(Vec<Member>)
 }
 
+type Aplan = ProjectExecution;
+
 pub struct ProjectExecution {
     actions: Vec<ProjectAction>,
     project: Project

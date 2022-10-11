@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand};
-use aplan::{builder::project_execution::{ProjectExecution, Return}, task::task_id::TaskId, error::Error, util};
+use aplan::{builder::project_execution::{Aplan, Return}, task::task_id::TaskId, error::Error, util};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -148,10 +148,10 @@ fn task_id_parser(s: &str) -> Result<TaskId, String> {
     TaskId::parse(s).or_else(|_| Err(s.to_string()))
 }
 
-fn process_wsb(command: &WSBCommands, project_name: &str) -> Result<ProjectExecution, Error> {
+fn process_wsb(command: &WSBCommands, project_name: &str) -> Result<Aplan, Error> {
     Ok(match command {
         WSBCommands::Show { format, output } => {
-            ProjectExecution::load(&project_name)?
+            Aplan::load(&project_name)?
                 .wsb(|wsb| {
                     match format {
                         ShowFormat::Dot => wsb.dot(output.as_deref()),
@@ -160,31 +160,31 @@ fn process_wsb(command: &WSBCommands, project_name: &str) -> Result<ProjectExecu
                 })
         },
         WSBCommands::Add { parent, name } => {
-            ProjectExecution::load(&project_name)?
+            Aplan::load(&project_name)?
                 .wsb(|wsb| {
                     wsb.add(parent.as_ref().unwrap_or(&TaskId::get_root_id()), name);
                 })
         },
         WSBCommands::Remove { id } => {
-            ProjectExecution::load(&project_name)?
+            Aplan::load(&project_name)?
                 .wsb(|wsb| {
                     wsb.remove(&id);
                 })
         },
         WSBCommands::Done { id, cost } => {
-            ProjectExecution::load(&project_name)?
+            Aplan::load(&project_name)?
                 .wsb(|wsb| {
                     wsb.done(&id, *cost);
                 })
         },
         WSBCommands::PlannedValue { id, value } => {
-            ProjectExecution::load(&project_name)?
+            Aplan::load(&project_name)?
                 .wsb(|wsb| {
                     wsb.planned_value(&id, *value);
                 })
         },
         WSBCommands::GetTask { id } => {
-            ProjectExecution::load(&project_name)?
+            Aplan::load(&project_name)?
                 .wsb(|wsb| {
                     wsb.get_task(&id);
                 })
@@ -192,34 +192,34 @@ fn process_wsb(command: &WSBCommands, project_name: &str) -> Result<ProjectExecu
     })
 }
 
-fn process_member(command: &MemberCommands, project_name: &str) -> Result<ProjectExecution, Error> {
+fn process_member(command: &MemberCommands, project_name: &str) -> Result<Aplan, Error> {
     Ok(match command {
         MemberCommands::List {  } => {
-            ProjectExecution::load(&project_name)?
+            Aplan::load(&project_name)?
             .member(|member| {
                 member.list_members();
             })
         },
         MemberCommands::Add { name } => {
-            ProjectExecution::load(&project_name)?
+            Aplan::load(&project_name)?
             .member(|member| {
                 member.add_member(name);
             })
         },
         MemberCommands::Remove { name } => {
-            ProjectExecution::load(&project_name)?
+            Aplan::load(&project_name)?
             .member(|member| {
                 member.remove_member(name);
             })
         },
         MemberCommands::Assign { name, id } => {
-            ProjectExecution::load(&project_name)?
+            Aplan::load(&project_name)?
             .member(|member| {
                 member.assign_task_to_member(id.clone(), name);
             })
         },
         MemberCommands::RemoveTask { name, id } => {
-            ProjectExecution::load(&project_name)?
+            Aplan::load(&project_name)?
             .member(|member| {
                 member.remove_member_from_task(id.clone(), name);
             })
@@ -233,7 +233,7 @@ fn process_args(cli: Cli) -> Result<(), Error>  {
     match &cli.command {
         Commands::Burndown {  } => todo!(),
         Commands::Init { .. } => {
-            ProjectExecution::new(&cli.project)
+            Aplan::new(&cli.project)
         },
         Commands::Member { command } => {
             process_member(command, project_name)?
