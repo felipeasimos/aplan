@@ -94,11 +94,11 @@ impl Task {
         self.num_child == 0
     }
 
-    pub fn add_member(&mut self, name: &str) {
+    pub(crate) fn add_member(&mut self, name: &str) {
         self.members_names.insert(name.to_string());
     }
 
-    pub fn remove_member(&mut self, name: &str) {
+    pub(crate) fn remove_member(&mut self, name: &str) {
         self.members_names.remove(name);
     }
 
@@ -109,8 +109,10 @@ impl Task {
 
 impl Display for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let members = self.members_names.iter().fold(String::new(), |acc, name| acc + name + " ");
+        let members = members.trim_end();
         match self.id().as_vec().last() {
-            Some(_) => write!(f, "{} - {} {}", self.id().to_string(), self.name(), self.status.to_icon()),
+            Some(_) => write!(f, "{} - {} {} - [{}]", self.id().to_string(), self.name(), self.status.to_icon(), members),
             None => write!(f, "{} {}", self.name().to_string(), self.status.to_icon()),
         }
     }

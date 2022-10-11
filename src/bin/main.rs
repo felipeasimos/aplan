@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand};
-use aplan::{builder::project_execution::{Aplan, Return}, task::task_id::TaskId, error::Error, util};
+use aplan::prelude::*;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -255,6 +255,9 @@ fn process_args(cli: Cli) -> Result<(), Error>  {
             },
             Return::MembersList(members) => {
                 members.iter().for_each(|member| println!("{}", member))
+            },
+            Return::Member(member) => {
+                println!("{}", member)
             },
         }
         Ok(())

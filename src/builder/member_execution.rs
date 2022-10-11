@@ -5,6 +5,7 @@ use super::project_execution::Return;
 #[derive(Debug, Clone)]
 enum MemberAction {
     ListMembers,
+    GetMember(String),
     AddMember(String),
     RemoveMember(String),
     AssignTaskToMember(TaskId, String),
@@ -26,6 +27,11 @@ impl MemberExecution {
 
     pub fn list_members(&mut self) -> &mut Self {
         self.actions.push(MemberAction::ListMembers);
+        self
+    }
+
+    pub fn get_member(&mut self, name: &str) -> &mut Self {
+        self.actions.push(MemberAction::GetMember(name.to_string()));
         self
     }
 
@@ -56,6 +62,7 @@ impl MemberExecution {
             .try_for_each(|action| -> Result<(), Error> {
                 match action {
                     MemberAction::ListMembers => { results.push(Return::MembersList(project.members().collect::<Vec<Member>>())); },
+                    MemberAction::GetMember(name) => { results.push(Return::Member(project.get_member(&name)?.clone())) },
                     MemberAction::AddMember(name) => { project.add_member(&name); },
                     MemberAction::RemoveMember(name) => { project.remove_member(&name)?; },
                     MemberAction::AssignTaskToMember(task_id, name) => { project.assign_task_to_member(task_id, &name)?; },

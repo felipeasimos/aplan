@@ -9,6 +9,9 @@ pub enum Error {
     #[error("'{0}' is not a valid TaskId string")]
     BadTaskIdString(String),
 
+    #[error("0 is not a valid number in a TaskId")]
+    BadTaskIdNum,
+
     #[error("File '{0}' not found")]
     FileNotFound(String),
 

@@ -14,10 +14,11 @@ pub enum Return {
     Task(Task),
     VisualizationDot(Option<String>, String),
     VisualizationTree(Option<String>, String),
-    MembersList(Vec<Member>)
+    MembersList(Vec<Member>),
+    Member(Member)
 }
 
-type Aplan = ProjectExecution;
+pub type Aplan = ProjectExecution;
 
 pub struct ProjectExecution {
     actions: Vec<ProjectAction>,

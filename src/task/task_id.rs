@@ -68,6 +68,18 @@ impl TaskId {
         Ok(TaskId::new(parent_vec))
     }
 
+    pub(crate) fn prev_sibling(&self) -> Result<TaskId, Error> {
+        let parent_id = self.parent()?;
+        let child_idx = self.child_idx()?;
+        parent_id.new_child_id(child_idx-1)
+    }
+
+    pub(crate) fn next_sibling(&self) -> Result<TaskId, Error> {
+        let parent_id = self.parent()?;
+        let child_idx = self.child_idx()?;
+        parent_id.new_child_id(child_idx+1)
+    }
+
     pub fn child_ids(&self, num_childs: u32) -> impl Iterator<Item=TaskId> + '_ {
 
         let id_vec = self.as_vec();
@@ -93,14 +105,17 @@ impl TaskId {
             .into_iter()
     }
 
-    pub fn new_child_id(&self, child_num: u32) -> TaskId {
+    pub fn new_child_id(&self, child_num: u32) -> Result<TaskId, Error> {
+        if child_num == 0 {
+            return Err(Error::BadTaskIdNum)
+        }
         let id_vec = self
             .as_vec()
             .iter()
             .cloned()
             .chain(std::iter::once(child_num))
             .collect::<Vec<u32>>();
-        TaskId::new(id_vec)
+        Ok(TaskId::new(id_vec))
     }
 
     pub fn get_root_id() -> TaskId {

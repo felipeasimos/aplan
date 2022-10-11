@@ -1,4 +1,4 @@
-use std::collections::{hash_set::Iter, HashSet};
+use std::collections::HashSet;
 use std::fmt::Display;
 
 use serde::{Serialize, Deserialize};
@@ -17,7 +17,7 @@ pub struct Member {
 }
 
 impl Member {
-    pub fn new(name: &str) -> Self {
+    pub(crate) fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
             schedule: Schedule::new(),
@@ -25,21 +25,23 @@ impl Member {
         }
     }
 
-    pub fn add_task(&mut self, task_id: TaskId) {
+    pub(crate) fn add_task(&mut self, task_id: TaskId) {
         self.tasks.insert(task_id);
     }
 
-    pub fn remove_task(&mut self, task_id: &TaskId) {
+    pub(crate) fn remove_task(&mut self, task_id: &TaskId) {
         self.tasks.remove(task_id);
     }
 
-    pub fn tasks(&self) -> Iter<'_, TaskId> {
+    pub(crate) fn task_ids(&self) -> impl Iterator<Item=&TaskId> + '_ {
         self.tasks.iter()
     }
 }
 
 impl Display for Member {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name)
+        let tasks = self.task_ids().fold(String::new(), |acc, id| acc + &id.to_string() + " ");
+        let tasks = tasks.trim_end();
+        write!(f, "{} - [{}]", self.name, tasks)
     }
 }
