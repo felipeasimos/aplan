@@ -14,6 +14,7 @@ enum ProjectAction {
 
 pub enum Return {
     Task(Task),
+    Tasks(Vec<Task>),
     Dot(Option<String>, String),
     Tree(Option<String>, String),
     MembersList(Vec<Member>),

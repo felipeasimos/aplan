@@ -60,13 +60,13 @@ enum MemberCommands {
     List { },
     /// Add member to project
     Add {
-        /// Name of the member
+        /// Name of the member to insert
         #[clap(value_parser)]
         name: String
     },
     /// Remove member from project
     Remove {
-        /// Name of the member
+        /// Name of the member to remove
         #[clap(value_parser)]
         name: String
     },
@@ -142,6 +142,11 @@ enum WSBCommands {
         #[clap(value_parser = task_id_parser)]
         id: TaskId
     },
+    /// Get list of task todo
+    Todo {
+        /// Show only this member's incomplete tasks
+        name: Option<String>
+    }
 }
 
 fn task_id_parser(s: &str) -> Result<TaskId, String> {
@@ -189,6 +194,12 @@ fn process_wsb(command: &WSBCommands, project_name: &str) -> Result<Aplan, Error
                     wsb.get_task(&id);
                 })
         }
+        WSBCommands::Todo { name } => {
+            Aplan::load(&project_name)?
+                .wsb(|wsb| {
+                    wsb.get_todo_tasks(name.clone());
+                })
+        },
     })
 }
 
@@ -256,6 +267,11 @@ fn process_args(cli: Cli) -> Result<Project, Error>  {
             },
             Return::Member(member) => {
                 println!("{}", member)
+            },
+            Return::Tasks(tasks) => {
+                tasks.iter().for_each(|task| {
+                    println!("{}", task)
+                })
             },
         }
         Ok(())

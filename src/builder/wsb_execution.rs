@@ -1,4 +1,4 @@
-use crate::{task::task_id::TaskId, project::Project, error::Error};
+use crate::{task::task_id::TaskId, project::Project, error::Error, prelude::Task};
 
 use super::project_execution::Return;
 
@@ -10,7 +10,8 @@ enum WSBAction {
     Remove(TaskId),
     PlannedValue(TaskId, f64),
     Done(TaskId, f64),
-    GetTask(TaskId)
+    GetTask(TaskId),
+    Todo(Option<String>)
 }
 
 #[derive(Debug, Clone)]
@@ -68,18 +69,25 @@ impl WSBExecution {
         self
     }
 
+    pub fn get_todo_tasks(&mut self, name: Option<String>) -> &mut Self {
+        self.actions.push(WSBAction::Todo(name));
+        self
+    } 
+
     pub(crate) fn run(self, project: &mut Project) -> Result<Vec<Return>, Error> {
         Ok(self.actions
             .into_iter()
             .map(|action| -> Result<Option<Return>, Error> {
                 Ok(match &action {
-                    WSBAction::Dot(filename) => { Some(Return::Dot(filename.clone(), project.wsb.to_dot_str(&mut project.tasks))) },
-                    WSBAction::Tree(filename) => { Some(Return::Tree(filename.clone(), project.wsb.to_tree_str(&mut project.tasks))) },
+                    WSBAction::Dot(filename) => Some(Return::Dot(filename.clone(), project.wsb.to_dot_str(&mut project.tasks))),
+                    WSBAction::Tree(filename) => Some(Return::Tree(filename.clone(), project.wsb.to_tree_str(&mut project.tasks))),
                     WSBAction::Add(parent_id, name) => { project.wsb.add_task(parent_id.clone(), &name, &mut project.tasks)?; None },
                     WSBAction::Remove(id) => { project.wsb.remove(&id, &mut project.tasks)?; None },
                     WSBAction::Done(id, cost) => { project.wsb.set_actual_cost(&id, *cost, &mut project.tasks)?; None },
                     WSBAction::PlannedValue(id, value) => { project.wsb.set_planned_value(&id, *value, &mut project.tasks)?; None },
-                    WSBAction::GetTask(id) => { Some(Return::Task(project.tasks.get(&id)?.clone())) },
+                    WSBAction::GetTask(id) => Some(Return::Task(project.tasks.get(&id)?.clone())),
+                    WSBAction::Todo(Some(name)) => Some(Return::Tasks(project.wsb.todo_tasks(&mut project.tasks).filter(|t| t.has_member(name)).cloned().collect::<Vec<Task>>())),
+                    WSBAction::Todo(None) => Some(Return::Tasks(project.wsb.todo_tasks(&mut project.tasks).cloned().collect::<Vec<Task>>()))
                 })
             })
             .collect::<Result<Vec<Option<Return>>, Error>>()?
