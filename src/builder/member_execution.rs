@@ -60,9 +60,9 @@ impl MemberExecution {
             .into_iter()
             .map(|action| -> Result<Option<Return>, Error> {
                 Ok(match action {
-                    MemberAction::ListMembers => { Some(Return::MembersList(project.members().collect::<Vec<Member>>())) },
-                    MemberAction::GetMember(name) => { Some(Return::Member(project.get_member(&name)?.clone())) },
-                    MemberAction::AddMember(name) => { project.add_member(&name); None },
+                    MemberAction::ListMembers => { Some(Return::MembersList(project.members.members().collect::<Vec<Member>>())) },
+                    MemberAction::GetMember(name) => { Some(Return::Member(project.members.get(&name)?.clone())) },
+                    MemberAction::AddMember(name) => { project.members.insert(name); None },
                     MemberAction::RemoveMember(name) => { project.remove_member(&name)?; None },
                     MemberAction::AssignTaskToMember(task_id, name) => { project.assign_task_to_member(task_id, &name)?; None },
                     MemberAction::RemoveMemberFromTask(task_id, name) => { project.remove_member_from_task(&task_id, &name)?; None },

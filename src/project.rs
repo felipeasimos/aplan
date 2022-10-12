@@ -5,70 +5,49 @@ use serde_with::serde_as;
 
 use std::io::Write;
 
-use crate::{subsystem::wsb::WSB, error::Error, task::{task_id::TaskId, Task}, member::Member};
+use crate::{subsystem::wsb::WSB, error::Error, task::{task_id::TaskId, tasks::Tasks}, member::{Member, members::Members}};
 
-#[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Project {
 
     pub(crate) wsb: WSB,
-    #[serde_as(as = "Vec<(_, _)>")]
-    pub(crate) tasks: HashMap<TaskId, Task>,
-    #[serde_as(as = "Vec<(_, _)>")]
-    pub(crate) members: HashMap<String, Member>
+    pub(crate) tasks: Tasks,
+    pub(crate) members: Members
     // burndown: Burndown
 }
 
 impl Project {
     pub(crate) fn new(name: &str) -> Self {
-        let mut tasks = HashMap::new();
+        let mut tasks = Tasks::new();
         let wsb = WSB::new(name, &mut tasks);
         Self {
             wsb,
             tasks,
-            members: HashMap::new()
+            members: Members::new()
         }
-    }
-
-    pub(crate) fn get_member(&self, name: &str) -> Result<&Member, Error> {
-        self.members.get(name)
-            .ok_or_else(|| Error::MemberNotFound(name.to_string()))
-    }
-
-    pub(crate) fn get_member_mut(&mut self, name: &str) -> Result<&mut Member, Error> {
-        self.members.get_mut(name)
-            .ok_or_else(|| Error::MemberNotFound(name.to_string()))
-    }
-
-    pub(crate) fn members(&self) -> impl Iterator<Item=Member> + '_ {
-        self.members.values().map(|v| v.clone())
-    }
-
-    pub(crate) fn add_member(&mut self, name: &str) {
-        self.members.insert(name.to_string(), Member::new(&name));
-    }
-
-    pub(crate) fn remove_member(&mut self, name: &str) -> Result<(), Error> {
-
-        self.get_member(name)?
-            .clone()
-            .task_ids()
-            .try_for_each(|id| {
-                self.remove_member_from_task(&id, name)
-            })?;
-        self.members.remove(name);
-        Ok(())
     }
 
     pub(crate) fn assign_task_to_member(&mut self, id: TaskId, name: &str) -> Result<(), Error> {
         self.wsb.assign_task_to_member(&id, name, &mut self.tasks)?;
 
-        Ok(self.get_member_mut(name)?.add_task(id))
+        Ok(self.members.get_mut(name)?.add_task(id))
     }
 
     pub(crate) fn remove_member_from_task(&mut self, id: &TaskId, name: &str) -> Result<(), Error> {
         self.wsb.remove_member_from_task(&id, name, &mut self.tasks)?;
-        Ok(self.get_member_mut(name)?.remove_task(id))
+        Ok(self.members.get_mut(name)?.remove_task(id))
+    }
+
+    pub(crate) fn remove_member(&mut self, name: &str) -> Result<(), Error> {
+
+        self.members.get(name)?
+            .clone()
+            .task_ids()
+            .try_for_each(|id| {
+                self.remove_member_from_task(&id, name)
+            })?;
+        self.members.remove(name)?;
+        Ok(())
     }
 
     pub(crate) fn name(&self) -> &str {

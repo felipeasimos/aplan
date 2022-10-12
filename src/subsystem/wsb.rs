@@ -1,8 +1,7 @@
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
+use crate::task::tasks::Tasks;
 use crate::task::{Task, TaskStatus};
 use crate::task::task_id::TaskId;
 
@@ -10,7 +9,7 @@ use crate::task::task_id::TaskId;
 pub(crate) struct WSB {}
 
 impl WSB {
-    pub(crate) fn new(name: &str, map: &mut HashMap<TaskId, Task>) -> Self {
+    pub(crate) fn new(name: &str, map: &mut Tasks) -> Self {
         let root_id = TaskId::get_root_id();
         let root_task = Task::new(root_id.clone(), name);
         map.insert(root_id, root_task);
@@ -19,31 +18,31 @@ impl WSB {
 
     /// SAFETY: uses `unwrap` instead of returning an error because a root node should always
     /// exists
-    pub(crate) fn name<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> &str {
+    pub(crate) fn name<'a>(&'a self, tasks: &'a Tasks) -> &str {
         tasks.get(&TaskId::get_root_id()).unwrap().name()
     }
 
     /// SAFETY: uses `unwrap` instead of returning an error because a root node should always
     /// exists
-    pub(crate) fn planned_value(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
+    pub(crate) fn planned_value(&self, tasks: &Tasks) -> f64 {
         tasks.get(&TaskId::get_root_id()).unwrap().get_planned_value()
     }
 
     /// SAFETY: uses `unwrap` instead of returning an error because a root node should always
     /// exists
-    pub(crate) fn actual_cost(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
+    pub(crate) fn actual_cost(&self, tasks: &Tasks) -> f64 {
         tasks.get(&TaskId::get_root_id()).unwrap().get_actual_cost()
     }
 
-    pub(crate) fn completion_percentage(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
+    pub(crate) fn completion_percentage(&self, tasks: &Tasks) -> f64 {
         self.done_tasks(tasks).count() as f64 / tasks.len() as f64
     }
 
-    pub(crate) fn earned_value(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
+    pub(crate) fn earned_value(&self, tasks: &Tasks) -> f64 {
         self.planned_value(tasks) * self.completion_percentage(tasks)
     }
 
-    pub(crate) fn spi(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
+    pub(crate) fn spi(&self, tasks: &Tasks) -> f64 {
         let res = self.earned_value(tasks) / self.planned_value(tasks);
         if res.is_nan() {
             0.0
@@ -52,11 +51,11 @@ impl WSB {
         }
     }
 
-    pub(crate) fn sv(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
+    pub(crate) fn sv(&self, tasks: &Tasks) -> f64 {
         self.earned_value(tasks) - self.planned_value(tasks)
     }
 
-    pub(crate) fn cpi(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
+    pub(crate) fn cpi(&self, tasks: &Tasks) -> f64 {
         let res = self.earned_value(tasks) / self.actual_cost(tasks);
         if res.is_nan() {
             0.0
@@ -65,33 +64,25 @@ impl WSB {
         }
     }
 
-    pub(crate) fn cv(&self, tasks: &HashMap<TaskId, Task>) -> f64 {
+    pub(crate) fn cv(&self, tasks: &Tasks) -> f64 {
         self.earned_value(tasks) - self.actual_cost(tasks)
     }
 
-    pub(crate) fn get_task<'a>(&'a self, task_id: &TaskId, tasks: &'a HashMap<TaskId, Task>) -> Result<&Task, Error> {
-        tasks.get(&task_id).ok_or_else(|| Error::TaskNotFound(task_id.clone()))
-    }
-
-    pub(crate) fn get_task_mut<'a>(&'a mut self, task_id: &TaskId, tasks: &'a mut HashMap<TaskId, Task>) -> Result<&mut Task, Error> {
-        tasks.get_mut(&task_id).ok_or_else(|| Error::TaskNotFound(task_id.clone()))
-    }
-
-    pub(crate) fn next_sibling<'a>(&'a self, task_id: &TaskId, tasks: &'a HashMap<TaskId, Task>) -> Result<&Task, Error> {
+    pub(crate) fn next_sibling<'a>(&'a self, task_id: &TaskId, tasks: &'a Tasks) -> Result<&Task, Error> {
         let next_sibling_id = task_id.next_sibling()?;
-        self.get_task(&next_sibling_id, tasks)
+        tasks.get(&next_sibling_id)
             .map_err(|_| Error::NoNextSibling(task_id.clone()))
     }
 
-    pub(crate) fn prev_sibling<'a>(&'a self, task_id: &TaskId, tasks: &'a HashMap<TaskId, Task>) -> Result<&Task, Error> {
+    pub(crate) fn prev_sibling<'a>(&'a self, task_id: &TaskId, tasks: &'a Tasks) -> Result<&Task, Error> {
         let prev_sibling_id = task_id.prev_sibling()?;
-        self.get_task(&prev_sibling_id, tasks)
+        tasks.get(&prev_sibling_id)
             .map_err(|_| Error::NoPrevSibling(task_id.clone()))
     }
 
-    pub(crate) fn add_task<'a>(&'a mut self, parent_task_id: TaskId, name: &str, tasks: &'a mut HashMap<TaskId, Task>) -> Result<&mut Task, Error> {
+    pub(crate) fn add_task<'a>(&'a mut self, parent_task_id: TaskId, name: &str, tasks: &'a mut Tasks) -> Result<&mut Task, Error> {
         // get parent
-        let parent_task = self.get_task_mut(&parent_task_id, tasks)?;
+        let parent_task = tasks.get_mut(&parent_task_id)?;
 
         // increase number of children
         parent_task.num_child += 1;
@@ -110,11 +101,11 @@ impl WSB {
             task.status = TaskStatus::InProgress;
         }, tasks)?;
 
-        self.get_task_mut(&task_id, tasks)
+        tasks.get_mut(&task_id)
     }
 
-    pub(crate) fn assign_task_to_member<'a>(&'a mut self, task_id: &TaskId, name: &str, tasks: &'a mut HashMap<TaskId, Task>) -> Result<(), Error> {
-        if self.get_task(task_id, tasks)?.is_trunk() {
+    pub(crate) fn assign_task_to_member<'a>(&'a mut self, task_id: &TaskId, name: &str, tasks: &'a mut Tasks) -> Result<(), Error> {
+        if tasks.get(task_id)?.is_trunk() {
             return Err(Error::TrunkCannotAddMember(task_id.clone()))
         }
 
@@ -123,8 +114,8 @@ impl WSB {
         }, tasks)
     }
 
-    pub(crate) fn remove_member_from_task<'a>(&'a mut self, task_id: &TaskId, name: &str, tasks: &'a mut HashMap<TaskId, Task>) -> Result<(), Error> {
-        let task = self.get_task(task_id, tasks)?;
+    pub(crate) fn remove_member_from_task<'a>(&'a mut self, task_id: &TaskId, name: &str, tasks: &'a mut Tasks) -> Result<(), Error> {
+        let task = tasks.get(task_id)?;
         if task.is_trunk() {
             return Err(Error::TrunkCannotRemoveMember(task_id.clone()))
         } else if !task.has_member(name) {
@@ -136,29 +127,29 @@ impl WSB {
         }, tasks)
     }
 
-    pub(crate) fn expand<const N: usize>(&mut self, arr: &[(&str, &str); N], tasks: &mut HashMap<TaskId, Task>) -> Result<&mut Self, Error> {
+    pub(crate) fn expand<const N: usize>(&mut self, arr: &[(&str, &str); N], tasks: &mut Tasks) -> Result<&mut Self, Error> {
         for (parent_id, task_name) in arr {
             self.add_task(TaskId::parse(parent_id)?, task_name, tasks)?;
         }
         Ok(self)
     }
 
-    fn apply_along_path<F: Fn(&mut Task)>(&mut self, id: &TaskId, func: F, tasks: &mut HashMap<TaskId, Task>) -> Result<(), Error> {
+    fn apply_along_path<F: Fn(&mut Task)>(&mut self, id: &TaskId, func: F, tasks: &mut Tasks) -> Result<(), Error> {
         id
             .path()
             .try_for_each(|id| {
-                let child = self.get_task_mut(&id, tasks)?;
+                let child = tasks.get_mut(&id)?;
                 func(child);
                 Ok(())
             })
     }
 
-    fn subtract_id(&mut self, child_id: &TaskId, layer_idx: usize, tasks: &mut HashMap<TaskId, Task>) -> Result<(), Error> {
-        let num_child = self.get_task(child_id, tasks)?.num_child;
+    fn subtract_id(&mut self, child_id: &TaskId, layer_idx: usize, tasks: &mut Tasks) -> Result<(), Error> {
+        let num_child = tasks.get(child_id)?.num_child;
         let old_task_id = child_id.clone();
         let mut new_task_id = child_id.clone();
         new_task_id.as_vec_mut()[layer_idx] -= 1;
-        let mut task = tasks.remove(&old_task_id).ok_or_else(|| Error::TaskNotFound(old_task_id.clone()))?;
+        let mut task = tasks.remove(&old_task_id)?;
         task.id = new_task_id.clone();
         tasks.insert(
             new_task_id,
@@ -170,10 +161,10 @@ impl WSB {
         })
     }
 
-    pub(crate) fn remove(&mut self, task_id: &TaskId, tasks: &mut HashMap<TaskId, Task>) -> Result<Task, Error> {
+    pub(crate) fn remove(&mut self, task_id: &TaskId, tasks: &mut Tasks) -> Result<Task, Error> {
         // don't remove if this is a trunk node
         let mut task_id = task_id.clone();
-        if self.get_task(&task_id, tasks)?.num_child > 0 {
+        if tasks.get(&task_id)?.num_child > 0 {
             return Err(Error::TrunkCannotBeRemoved(task_id.clone()));
         }
 
@@ -181,7 +172,7 @@ impl WSB {
 
         let parent_id = task_id.parent()?;
         let parent_childs: _ = {
-            let mut parent = self.get_task_mut(&parent_id, tasks)?;
+            let mut parent = tasks.get_mut(&parent_id)?;
             parent.num_child -= 1;
             parent.id().child_ids(parent.num_child+1)
                 .collect::<Vec<TaskId>>()
@@ -190,7 +181,7 @@ impl WSB {
         let layer_idx = task_id.len() - 1;
         let child_idx = task_id.child_idx()? as usize - 1;
 
-        let task = tasks.remove(&task_id).ok_or_else(||Error::TaskNotFound(task_id.clone()))?;
+        let task = tasks.remove(&task_id)?;
 
         // change id of child that comes after id node
         parent_childs.iter().enumerate().try_for_each(|(index, child_id)| -> Result<(), _> {
@@ -202,29 +193,29 @@ impl WSB {
 
         // remove last id child from the parent
         task_id.as_vec_mut()[layer_idx] = parent_childs.len() as u32;
-        tasks.remove(&task_id);
+        tasks.remove(&task_id)?;
 
         Ok(task)
     }
 
-    fn remove_task_stats_from_tasks(&mut self, task_id: &TaskId, tasks: &mut HashMap<TaskId, Task>) -> Result<(), Error> {
+    fn remove_task_stats_from_tasks(&mut self, task_id: &TaskId, tasks: &mut Tasks) -> Result<(), Error> {
 
         self.set_actual_cost(&task_id, 0.0, tasks)?;
         self.set_planned_value(&task_id, 0.0, tasks)?;
         Ok(())
     }
 
-    fn children_are_done(&self, task_id: &TaskId, tasks: &HashMap<TaskId, Task>) -> bool {
+    fn children_are_done(&self, task_id: &TaskId, tasks: &Tasks) -> bool {
         tasks.get(task_id).unwrap()
             .child_ids()
             .find(|id| tasks.get(id).unwrap().status != TaskStatus::Done)
             .is_none()
     }
 
-    pub(crate) fn set_actual_cost(&mut self, task_id: &TaskId, actual_cost: f64, tasks: &mut HashMap<TaskId, Task>) -> Result<(), Error> {
+    pub(crate) fn set_actual_cost(&mut self, task_id: &TaskId, actual_cost: f64, tasks: &mut Tasks) -> Result<(), Error> {
         let parent_id = task_id.parent()?;
         {
-            let mut task = self.get_task_mut(&task_id, tasks)?;
+            let mut task = tasks.get_mut(&task_id)?;
             if task.is_trunk() {
                 return Err(Error::TrunkCannotChangeCost(task_id.clone()));
             }
@@ -243,15 +234,15 @@ impl WSB {
             .rev()
             .try_for_each(|id| {
                 if self.children_are_done(&id, tasks) {
-                    self.get_task_mut(&id, tasks)?.status = TaskStatus::Done;
+                    tasks.get_mut(&id)?.status = TaskStatus::Done;
                 }
                 Ok(())
             })
     }
 
-    pub(crate) fn set_planned_value(&mut self, task_id: &TaskId, planned_value: f64, tasks: &mut HashMap<TaskId, Task>) -> Result<(), Error> {
+    pub(crate) fn set_planned_value(&mut self, task_id: &TaskId, planned_value: f64, tasks: &mut Tasks) -> Result<(), Error> {
         let parent_id = task_id.parent()?;
-        let mut task = self.get_task_mut(&task_id, tasks)?;
+        let mut task = tasks.get_mut(&task_id)?;
         // can't set actual cost of trunk node
         if task.is_trunk() {
             return Err(Error::TrunkCannotChangeValue(task_id.clone()));
@@ -265,7 +256,7 @@ impl WSB {
         }, tasks)
     }
 
-    pub(crate) fn to_dot_str(&self, tasks: &HashMap<TaskId, Task>) -> String {
+    pub(crate) fn to_dot_str(&self, tasks: &Tasks) -> String {
         let stats = format!(
             "earned value: {}, spi: {}, sv: {}, cpi: {}, cv: {}",
             self.earned_value(tasks),
@@ -279,7 +270,7 @@ impl WSB {
             self.subtasks_to_dot_str(&TaskId::get_root_id(), tasks))
     }
 
-    fn subtasks_to_dot_str(&self, root_id: &TaskId, tasks: &HashMap<TaskId, Task>) -> String {
+    fn subtasks_to_dot_str(&self, root_id: &TaskId, tasks: &Tasks) -> String {
         let mut s = String::new();
         let root = tasks.get(root_id).unwrap();
         let root_str = root.to_string();
@@ -292,7 +283,7 @@ impl WSB {
         s
     }
 
-    fn subtasks_to_tree_str(&self, root_id: &TaskId, prefix: &str, tasks: &HashMap<TaskId, Task>) -> String {
+    fn subtasks_to_tree_str(&self, root_id: &TaskId, prefix: &str, tasks: &Tasks) -> String {
         let mut s = String::new();
         let root = tasks.get(root_id).unwrap();
 
@@ -313,7 +304,7 @@ impl WSB {
         s
     }
 
-    pub(crate) fn to_tree_str(&self, tasks: &HashMap<TaskId, Task>) -> String {
+    pub(crate) fn to_tree_str(&self, tasks: &Tasks) -> String {
         let root_id = &TaskId::get_root_id();
         let root = tasks.get(root_id).unwrap();
         format!(
@@ -322,27 +313,27 @@ impl WSB {
             self.subtasks_to_tree_str(&TaskId::get_root_id(), "", tasks))
     }
 
-    pub(crate) fn tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> impl Iterator<Item=&Task> {
+    pub(crate) fn tasks<'a>(&'a self, tasks: &'a Tasks) -> impl Iterator<Item=&Task> {
         tasks
-            .values()
+            .tasks()
             .filter(|task| task.is_leaf())
     }
 
-    pub(crate) fn todo_tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> impl Iterator<Item=&Task> {
+    pub(crate) fn todo_tasks<'a>(&'a self, tasks: &'a Tasks) -> impl Iterator<Item=&Task> {
         tasks
-            .values()
+            .tasks()
             .filter(|task| task.is_leaf() && task.status != TaskStatus::Done)
     }
 
-    pub(crate) fn in_progress_tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> impl Iterator<Item=&Task> {
+    pub(crate) fn in_progress_tasks<'a>(&'a self, tasks: &'a Tasks) -> impl Iterator<Item=&Task> {
         tasks
-            .values()
+            .tasks()
             .filter(|task| task.is_leaf() && task.status == TaskStatus::InProgress)
     }
 
-    pub(crate) fn done_tasks<'a>(&'a self, tasks: &'a HashMap<TaskId, Task>) -> impl Iterator<Item=&Task> {
+    pub(crate) fn done_tasks<'a>(&'a self, tasks: &'a Tasks) -> impl Iterator<Item=&Task> {
         tasks
-            .values()
+            .tasks()
             .filter(|task| task.is_leaf() && task.status == TaskStatus::Done)
     }
 }
@@ -354,7 +345,7 @@ mod tests {
 
     #[test]
     fn tasks() {
-        let mut tasks = HashMap::new();
+        let mut tasks = Tasks::new();
         let map = &mut tasks;
         let mut wsb = WSB::new("Project", map);
 
@@ -377,69 +368,69 @@ mod tests {
             ("", "Create GUI tool"),
                 ("3", "Create plot visualizer")
         ], map).unwrap();
-        assert_eq!(wsb.get_task(&task_id_1, map), Ok(&Task::new(TaskId::new(vec![1]), "Create WSB")));
-        assert_eq!(wsb.get_task_mut(&task_id_1, map), Ok(&mut Task::new(TaskId::new(vec![1]), "Create WSB")));
+        assert_eq!(map.get(&task_id_1), Ok(&Task::new(TaskId::new(vec![1]), "Create WSB")));
+        assert_eq!(map.get_mut(&task_id_1), Ok(&mut Task::new(TaskId::new(vec![1]), "Create WSB")));
 
-        assert_eq!(wsb.get_task(&task_id_1_1, map), Ok(&Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
-        assert_eq!(wsb.get_task_mut(&task_id_1_1, map), Ok(&mut Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
+        assert_eq!(map.get(&task_id_1_1), Ok(&Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
+        assert_eq!(map.get_mut(&task_id_1_1), Ok(&mut Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
         assert_eq!(wsb.set_planned_value(&task_id_1_1, 2.0, map), Ok(()));
         assert_eq!(wsb.planned_value(map), 2.0);
-        assert_eq!(wsb.get_task(&task_id_1_1, map).unwrap().get_planned_value(), 2.0);
-        assert_eq!(wsb.get_task(&task_id_1, map).unwrap().get_planned_value(), 2.0);
+        assert_eq!(map.get(&task_id_1_1).unwrap().get_planned_value(), 2.0);
+        assert_eq!(map.get(&task_id_1).unwrap().get_planned_value(), 2.0);
 
-        assert_eq!(wsb.get_task(&task_id_2, map), Ok(&Task::new(TaskId::new(vec![2]), "Create CLI tool")));
-        assert_eq!(wsb.get_task_mut(&task_id_2, map), Ok(&mut Task::new(TaskId::new(vec![2]), "Create CLI tool")));
+        assert_eq!(map.get(&task_id_2), Ok(&Task::new(TaskId::new(vec![2]), "Create CLI tool")));
+        assert_eq!(map.get_mut(&task_id_2), Ok(&mut Task::new(TaskId::new(vec![2]), "Create CLI tool")));
 
-        assert_eq!(wsb.get_task(&task_id_2_1, map), Ok(&Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
-        assert_eq!(wsb.get_task_mut(&task_id_2_1, map), Ok(&mut Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
+        assert_eq!(map.get(&task_id_2_1), Ok(&Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
+        assert_eq!(map.get_mut(&task_id_2_1), Ok(&mut Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
         assert_eq!(wsb.set_planned_value(&task_id_2_1, 7.0, map), Ok(()));
         assert_eq!(wsb.planned_value(map), 9.0);
-        assert_eq!(wsb.get_task(&task_id_2_1, map).unwrap().get_planned_value(), 7.0);
-        assert_eq!(wsb.get_task(&task_id_2_2, map).unwrap().get_planned_value(), 0.0);
-        assert_eq!(wsb.get_task(&task_id_2, map).unwrap().get_planned_value(), 7.0);
+        assert_eq!(map.get(&task_id_2_1).unwrap().get_planned_value(), 7.0);
+        assert_eq!(map.get(&task_id_2_2).unwrap().get_planned_value(), 0.0);
+        assert_eq!(map.get(&task_id_2).unwrap().get_planned_value(), 7.0);
 
-        assert_eq!(wsb.get_task(&task_id_2_2, map), Ok(&Task::new(TaskId::new(vec![2,2]), "Create help menu")));
-        assert_eq!(wsb.get_task_mut(&task_id_2_2, map), Ok(&mut Task::new(TaskId::new(vec![2,2]), "Create help menu")));
+        assert_eq!(map.get(&task_id_2_2), Ok(&Task::new(TaskId::new(vec![2,2]), "Create help menu")));
+        assert_eq!(map.get_mut(&task_id_2_2), Ok(&mut Task::new(TaskId::new(vec![2,2]), "Create help menu")));
         assert_eq!(wsb.set_planned_value(&task_id_2_2, 33.0, map), Ok(()));
         assert_eq!(wsb.planned_value(map), 42.0);
-        assert_eq!(wsb.get_task(&task_id_2_1, map).unwrap().get_planned_value(), 7.0);
-        assert_eq!(wsb.get_task(&task_id_2_2, map).unwrap().get_planned_value(), 33.0);
-        assert_eq!(wsb.get_task(&task_id_2, map).unwrap().get_planned_value(), 40.0);
+        assert_eq!(map.get(&task_id_2_1).unwrap().get_planned_value(), 7.0);
+        assert_eq!(map.get(&task_id_2_2).unwrap().get_planned_value(), 33.0);
+        assert_eq!(map.get(&task_id_2).unwrap().get_planned_value(), 40.0);
 
-        assert_eq!(wsb.get_task(&task_id_3, map), Ok(&Task::new(TaskId::new(vec![3]), "Create GUI tool")));
-        assert_eq!(wsb.get_task_mut(&task_id_3, map), Ok(&mut Task::new(TaskId::new(vec![3]), "Create GUI tool")));
+        assert_eq!(map.get(&task_id_3), Ok(&Task::new(TaskId::new(vec![3]), "Create GUI tool")));
+        assert_eq!(map.get_mut(&task_id_3), Ok(&mut Task::new(TaskId::new(vec![3]), "Create GUI tool")));
 
-        assert_eq!(wsb.get_task(&task_id_3_1, map), Ok(&Task::new(TaskId::new(vec![3,1]), "Create plot visualizer")));
-        assert_eq!(wsb.get_task_mut(&task_id_3_1, map), Ok(&mut Task::new(TaskId::new(vec![3,1]), "Create plot visualizer")));
+        assert_eq!(map.get(&task_id_3_1), Ok(&Task::new(TaskId::new(vec![3,1]), "Create plot visualizer")));
+        assert_eq!(map.get_mut(&task_id_3_1), Ok(&mut Task::new(TaskId::new(vec![3,1]), "Create plot visualizer")));
         assert_eq!(wsb.set_planned_value(&task_id_3_1, 20.0, map), Ok(()));
         assert_eq!(wsb.planned_value(map), 62.0);
-        assert_eq!(wsb.get_task(&task_id_3_1, map).unwrap().get_planned_value(), 20.0);
-        assert_eq!(wsb.get_task(&task_id_3, map).unwrap().get_planned_value(), 20.0);
-        assert_eq!(wsb.remove(&task_id_2_1, map), Ok(Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
+        assert_eq!(map.get(&task_id_3_1).unwrap().get_planned_value(), 20.0);
+        assert_eq!(map.get(&task_id_3).unwrap().get_planned_value(), 20.0);
+        assert_eq!(map.remove(&task_id_2_1), Ok(Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
 
         assert_eq!(wsb.planned_value(map), 55.0);
-        assert_eq!(wsb.get_task(&task_id_2_1, map), Ok(&Task::new(TaskId::new(vec![2, 1]), "Create help menu")));
-        assert_eq!(wsb.get_task(&task_id_2, map), Ok(&Task::new(TaskId::new(vec![2]), "Create CLI tool")));
-        assert_eq!(wsb.get_task(&task_id_2, map).unwrap().get_planned_value(), 33.0);
+        assert_eq!(map.get(&task_id_2_1), Ok(&Task::new(TaskId::new(vec![2, 1]), "Create help menu")));
+        assert_eq!(map.get(&task_id_2), Ok(&Task::new(TaskId::new(vec![2]), "Create CLI tool")));
+        assert_eq!(map.get(&task_id_2).unwrap().get_planned_value(), 33.0);
 
-        assert_eq!(wsb.remove(&task_id_2, map), Err(Error::TrunkCannotBeRemoved(task_id_2.clone())));
+        assert_eq!(map.remove(&task_id_2), Err(Error::TrunkCannotBeRemoved(task_id_2.clone())));
         assert_eq!(wsb.planned_value(map), 55.0);
-        assert_eq!(wsb.remove(&task_id_2_1, map), Ok(Task::new(TaskId::new(vec![2,1]), "Create help menu")));
+        assert_eq!(map.remove(&task_id_2_1), Ok(Task::new(TaskId::new(vec![2,1]), "Create help menu")));
         assert_eq!(wsb.planned_value(map), 22.0);
-        assert_eq!(wsb.get_task(&task_id_2, map).unwrap().get_planned_value(), 0.0);
-        assert_eq!(wsb.remove(&task_id_2, map), Ok(Task::new(TaskId::new(vec![2]), "Create CLI tool")));
+        assert_eq!(map.get(&task_id_2).unwrap().get_planned_value(), 0.0);
+        assert_eq!(map.remove(&task_id_2), Ok(Task::new(TaskId::new(vec![2]), "Create CLI tool")));
         assert_eq!(wsb.planned_value(map), 22.0);
 
-        assert_eq!(wsb.get_task(&task_id_1, map), Ok(&Task::new(TaskId::new(vec![1]), "Create WSB")));
-        assert_eq!(wsb.get_task_mut(&task_id_1, map), Ok(&mut Task::new(TaskId::new(vec![1]), "Create WSB")));
+        assert_eq!(map.get(&task_id_1), Ok(&Task::new(TaskId::new(vec![1]), "Create WSB")));
+        assert_eq!(map.get_mut(&task_id_1), Ok(&mut Task::new(TaskId::new(vec![1]), "Create WSB")));
 
-        assert_eq!(wsb.get_task(&task_id_1_1, map), Ok(&Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
-        assert_eq!(wsb.get_task_mut(&task_id_1_1, map), Ok(&mut Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
+        assert_eq!(map.get(&task_id_1_1), Ok(&Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
+        assert_eq!(map.get_mut(&task_id_1_1), Ok(&mut Task::new(TaskId::new(vec![1,1]), "Create Task struct")));
 
-        assert_eq!(wsb.get_task(&task_id_2, map), Ok(&Task::new(TaskId::new(vec![2]), "Create GUI tool")));
-        assert_eq!(wsb.get_task_mut(&task_id_2, map), Ok(&mut Task::new(TaskId::new(vec![2]), "Create GUI tool")));
+        assert_eq!(map.get(&task_id_2), Ok(&Task::new(TaskId::new(vec![2]), "Create GUI tool")));
+        assert_eq!(map.get_mut(&task_id_2), Ok(&mut Task::new(TaskId::new(vec![2]), "Create GUI tool")));
 
-        assert_eq!(wsb.get_task(&task_id_2_1, map), Ok(&Task::new(TaskId::new(vec![2,1]), "Create plot visualizer")));
-        assert_eq!(wsb.get_task_mut(&task_id_2_1, map), Ok(&mut Task::new(TaskId::new(vec![2,1]), "Create plot visualizer")));
+        assert_eq!(map.get(&task_id_2_1), Ok(&Task::new(TaskId::new(vec![2,1]), "Create plot visualizer")));
+        assert_eq!(map.get_mut(&task_id_2_1), Ok(&mut Task::new(TaskId::new(vec![2,1]), "Create plot visualizer")));
     }
 }

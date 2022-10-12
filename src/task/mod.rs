@@ -1,4 +1,5 @@
 pub mod task_id;
+pub(crate) mod tasks;
 
 use std::{fmt::Display, collections::HashSet};
 

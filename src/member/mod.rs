@@ -1,3 +1,5 @@
+pub(crate) mod members;
+
 use std::collections::HashSet;
 use std::fmt::Display;
 

@@ -79,7 +79,7 @@ impl WSBExecution {
                     WSBAction::Remove(id) => { project.wsb.remove(&id, &mut project.tasks)?; None },
                     WSBAction::Done(id, cost) => { project.wsb.set_actual_cost(&id, *cost, &mut project.tasks)?; None },
                     WSBAction::PlannedValue(id, value) => { project.wsb.set_planned_value(&id, *value, &mut project.tasks)?; None },
-                    WSBAction::GetTask(id) => { Some(Return::Task(project.wsb.get_task(&id, &mut project.tasks)?.clone())) },
+                    WSBAction::GetTask(id) => { Some(Return::Task(project.tasks.get(&id)?.clone())) },
                 })
             })
             .collect::<Result<Vec<Option<Return>>, Error>>()?
