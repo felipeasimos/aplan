@@ -12,8 +12,8 @@ enum ProjectAction {
 
 pub enum Return {
     Task(Task),
-    VisualizationDot(Option<String>, String),
-    VisualizationTree(Option<String>, String),
+    Dot(Option<String>, String),
+    Tree(Option<String>, String),
     MembersList(Vec<Member>),
     Member(Member)
 }
@@ -26,6 +26,13 @@ pub struct ProjectExecution {
 }
 
 impl ProjectExecution {
+
+    pub fn from(project: Project) -> Self {
+        Self {
+            actions: Vec::new(),
+            project
+        }
+    }
 
     pub fn new(name: &str) -> Self {
         Self {
@@ -65,7 +72,7 @@ impl ProjectExecution {
         self
     }
 
-    pub fn run(mut self) -> Result<Vec<Return>, Error> {
+    pub fn run<F: FnMut(&Vec<Return>) -> Result<(), Error>>(mut self, mut func: F) -> Result<Project, Error> {
         let mut results : Vec<Return> = Vec::new();
         self.actions
             .into_iter()
@@ -78,6 +85,7 @@ impl ProjectExecution {
                 }
                 Ok(())
             })?;
-        Ok(results)
+        func(&results)
+            .map(|_| self.project)
     }
 }

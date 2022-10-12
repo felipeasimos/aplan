@@ -19,7 +19,7 @@ pub struct MemberExecution {
 
 impl MemberExecution {
 
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             actions: Vec::new()
         }
@@ -55,7 +55,7 @@ impl MemberExecution {
         self
     }
 
-    pub fn run(self, project: &mut Project) -> Result<Vec<Return>, Error> {
+    pub(crate) fn run(self, project: &mut Project) -> Result<Vec<Return>, Error> {
         let mut results : Vec<Return> = Vec::new();
         self.actions
             .into_iter()
