@@ -243,25 +243,21 @@ fn process_args(cli: Cli) -> Result<Project, Error>  {
         }
     }
     .save()
-    .run(|res_vec| -> Result<(), Error> {
-        res_vec
-            .iter()
-            .for_each(|res| {
-                match res {
-                    Return::Task(task) => {
-                        println!("{}", task.to_string())
-                    }
-                    Return::Dot(filename, text) | Return::Tree(filename, text) => {
-                        util::to_file(filename.as_deref(), text.to_string())
-                    },
-                    Return::MembersList(members) => {
-                        members.iter().for_each(|member| println!("{}", member))
-                    },
-                    Return::Member(member) => {
-                        println!("{}", member)
-                    },
-                }
-            });
+    .run(|res| -> Result<(), Error> {
+        match res {
+            Return::Task(task) => {
+                println!("{}", task.to_string())
+            }
+            Return::Dot(filename, text) | Return::Tree(filename, text) => {
+                util::to_file(filename.as_deref(), text.to_string())
+            },
+            Return::MembersList(members) => {
+                members.iter().for_each(|member| println!("{}", member))
+            },
+            Return::Member(member) => {
+                println!("{}", member)
+            },
+        }
         Ok(())
     })
 }

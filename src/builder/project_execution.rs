@@ -1,3 +1,5 @@
+use std::vec::IntoIter;
+
 use crate::{project::Project, task::Task, error::Error, member::Member};
 
 use super::{wsb_execution::WSBExecution, member_execution::MemberExecution};
@@ -72,20 +74,24 @@ impl ProjectExecution {
         self
     }
 
-    pub fn run<F: FnMut(&Vec<Return>) -> Result<(), Error>>(mut self, mut func: F) -> Result<Project, Error> {
-        let mut results : Vec<Return> = Vec::new();
+    pub fn run<F>(mut self, func: F) -> Result<Project, Error>
+    where F: FnMut(Return) -> Result<(), Error> {
+
         self.actions
             .into_iter()
-            .try_for_each(|action| -> Result<(), Error> {
-                match action {
-                    ProjectAction::Save => { self.project.save()?; },
-                    ProjectAction::SaveTo(filename) => { self.project.save_to(&filename)?; },
-                    ProjectAction::RunWSB(wsb_execution) => { results.append(&mut wsb_execution.run(&mut self.project)?); },
-                    ProjectAction::RunMember(member_execution) => { results.append(&mut member_execution.run(&mut self.project)?); },
-                }
-                Ok(())
-            })?;
-        func(&results)
-            .map(|_| self.project)
+            .map(|action| -> Result<Option<IntoIter<Return>>, Error> {
+                Ok(match action {
+                    ProjectAction::Save => { self.project.save()?; None },
+                    ProjectAction::SaveTo(filename) => { self.project.save_to(&filename)?; None },
+                    ProjectAction::RunWSB(wsb_execution) => { Some(wsb_execution.run(&mut self.project)?.into_iter()) },
+                    ProjectAction::RunMember(member_execution) => { Some(member_execution.run(&mut self.project)?.into_iter()) },
+                })         
+            })
+            .collect::<Result<Vec<Option<IntoIter<Return>>>, Error>>()?
+            .into_iter()
+            .filter_map(|ret_opt| ret_opt)
+            .flatten()
+            .try_for_each(func)?;
+        Ok(self.project)
     }
 }

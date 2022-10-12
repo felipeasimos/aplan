@@ -56,20 +56,21 @@ impl MemberExecution {
     }
 
     pub(crate) fn run(self, project: &mut Project) -> Result<Vec<Return>, Error> {
-        let mut results : Vec<Return> = Vec::new();
-        self.actions
+        Ok(self.actions
             .into_iter()
-            .try_for_each(|action| -> Result<(), Error> {
-                match action {
-                    MemberAction::ListMembers => { results.push(Return::MembersList(project.members().collect::<Vec<Member>>())); },
-                    MemberAction::GetMember(name) => { results.push(Return::Member(project.get_member(&name)?.clone())) },
-                    MemberAction::AddMember(name) => { project.add_member(&name); },
-                    MemberAction::RemoveMember(name) => { project.remove_member(&name)?; },
-                    MemberAction::AssignTaskToMember(task_id, name) => { project.assign_task_to_member(task_id, &name)?; },
-                    MemberAction::RemoveMemberFromTask(task_id, name) => { project.remove_member_from_task(&task_id, &name)?; },
-                }
-                Ok(())
-            })?;
-        Ok(results)
+            .map(|action| -> Result<Option<Return>, Error> {
+                Ok(match action {
+                    MemberAction::ListMembers => { Some(Return::MembersList(project.members().collect::<Vec<Member>>())) },
+                    MemberAction::GetMember(name) => { Some(Return::Member(project.get_member(&name)?.clone())) },
+                    MemberAction::AddMember(name) => { project.add_member(&name); None },
+                    MemberAction::RemoveMember(name) => { project.remove_member(&name)?; None },
+                    MemberAction::AssignTaskToMember(task_id, name) => { project.assign_task_to_member(task_id, &name)?; None },
+                    MemberAction::RemoveMemberFromTask(task_id, name) => { project.remove_member_from_task(&task_id, &name)?; None },
+                })
+            })
+            .collect::<Result<Vec<Option<Return>>, Error>>()?
+            .into_iter()
+            .filter_map(|res| res)
+            .collect::<Vec<Return>>())
     }
 }

@@ -69,21 +69,22 @@ impl WSBExecution {
     }
 
     pub(crate) fn run(self, project: &mut Project) -> Result<Vec<Return>, Error> {
-        let mut results = Vec::new();
-        self.actions
+        Ok(self.actions
             .into_iter()
-            .try_for_each(|action| -> Result<(), Error> {
-                match &action {
-                    WSBAction::Dot(filename) => { results.push(Return::Dot(filename.clone(), project.wsb.to_dot_str(&mut project.tasks))); },
-                    WSBAction::Tree(filename) => { results.push(Return::Tree(filename.clone(), project.wsb.to_tree_str(&mut project.tasks))); },
-                    WSBAction::Add(parent_id, name) => { project.wsb.add_task(parent_id.clone(), &name, &mut project.tasks)?; },
-                    WSBAction::Remove(id) => { project.wsb.remove(&id, &mut project.tasks)?; },
-                    WSBAction::Done(id, cost) => { project.wsb.set_actual_cost(&id, *cost, &mut project.tasks)?; },
-                    WSBAction::PlannedValue(id, value) => { project.wsb.set_planned_value(&id, *value, &mut project.tasks)?; },
-                    WSBAction::GetTask(id) => { results.push(Return::Task(project.wsb.get_task(&id, &mut project.tasks)?.clone())); },
-                }
-                Ok(())
-            })?;
-        Ok(results)
+            .map(|action| -> Result<Option<Return>, Error> {
+                Ok(match &action {
+                    WSBAction::Dot(filename) => { Some(Return::Dot(filename.clone(), project.wsb.to_dot_str(&mut project.tasks))) },
+                    WSBAction::Tree(filename) => { Some(Return::Tree(filename.clone(), project.wsb.to_tree_str(&mut project.tasks))) },
+                    WSBAction::Add(parent_id, name) => { project.wsb.add_task(parent_id.clone(), &name, &mut project.tasks)?; None },
+                    WSBAction::Remove(id) => { project.wsb.remove(&id, &mut project.tasks)?; None },
+                    WSBAction::Done(id, cost) => { project.wsb.set_actual_cost(&id, *cost, &mut project.tasks)?; None },
+                    WSBAction::PlannedValue(id, value) => { project.wsb.set_planned_value(&id, *value, &mut project.tasks)?; None },
+                    WSBAction::GetTask(id) => { Some(Return::Task(project.wsb.get_task(&id, &mut project.tasks)?.clone())) },
+                })
+            })
+            .collect::<Result<Vec<Option<Return>>, Error>>()?
+            .into_iter()
+            .filter_map(|res| res)
+            .collect::<Vec<Return>>())
     }
 }
