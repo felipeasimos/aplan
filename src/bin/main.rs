@@ -154,91 +154,109 @@ fn task_id_parser(s: &str) -> Result<TaskId, String> {
 }
 
 fn process_wsb(command: &WSBCommands, project_name: &str) -> Result<Aplan, Error> {
+    let mut project = Aplan::load(&project_name)?;
     Ok(match command {
         WSBCommands::Show { format, output } => {
-            Aplan::load(&project_name)?
+            project
                 .wsb(|wsb| {
                     match format {
-                        ShowFormat::Dot => wsb.dot(output.as_deref()),
-                        ShowFormat::Text => wsb.tree(output.as_deref()),
+                        ShowFormat::Dot => util::to_file(output.as_deref(), wsb.dot()),
+                        ShowFormat::Text => util::to_file(output.as_deref(), wsb.tree()),
                     };
+                    Ok(())
                 })
         },
         WSBCommands::Add { parent, name } => {
-            Aplan::load(&project_name)?
+            project
                 .wsb(|wsb| {
-                    wsb.add(parent.as_ref().unwrap_or(&TaskId::get_root_id()), name);
+                    wsb.add(parent.clone().unwrap_or(TaskId::get_root_id()), name)?;
+                    Ok(())
                 })
         },
         WSBCommands::Remove { id } => {
-            Aplan::load(&project_name)?
+            project
                 .wsb(|wsb| {
-                    wsb.remove(&id);
+                    wsb.remove(&id)?;
+                    Ok(())
                 })
         },
         WSBCommands::Done { id, cost } => {
-            Aplan::load(&project_name)?
+            project
                 .wsb(|wsb| {
-                    wsb.done(&id, *cost);
+                    wsb.done(&id, *cost)?;
+                    Ok(())
                 })
         },
         WSBCommands::PlannedValue { id, value } => {
-            Aplan::load(&project_name)?
+            project
                 .wsb(|wsb| {
-                    wsb.planned_value(&id, *value);
+                    wsb.planned_value(&id, *value)?;
+                    Ok(())
                 })
         },
         WSBCommands::GetTask { id } => {
-            Aplan::load(&project_name)?
+            project
                 .wsb(|wsb| {
-                    wsb.get_task(&id);
+                    println!("{}", wsb.get_task(&id)?);
+                    Ok(())
                 })
         }
         WSBCommands::Todo { name } => {
-            Aplan::load(&project_name)?
+            project
                 .wsb(|wsb| {
-                    wsb.get_todo_tasks(name.clone());
+                    match name {
+                        Some(name) => wsb.get_todo_tasks().filter(|t| t.has_member(name)).for_each(|t| println!("{}", t)),
+                        None => wsb.get_todo_tasks().for_each(|t| println!("{}", t)),
+                    }
+                    Ok(())
                 })
         },
-    })
+    }?.clone())
 }
 
 fn process_member(command: &MemberCommands, project_name: &str) -> Result<Aplan, Error> {
+    let mut project = Aplan::load(&project_name)?;
     Ok(match command {
         MemberCommands::List {  } => {
-            Aplan::load(&project_name)?
-            .member(|member| {
-                member.list_members();
+            project
+            .members(|member| {
+                member.list_members().for_each(|m| println!("{}", m));
+                Ok(())
             })
         },
         MemberCommands::Add { name } => {
-            Aplan::load(&project_name)?
-            .member(|member| {
-                member.add_member(name);
+            project
+            .members(|member| {
+                member.add_member(name)?;
+                Ok(())
             })
         },
         MemberCommands::Remove { name } => {
-            Aplan::load(&project_name)?
-            .member(|member| {
-                member.remove_member(name);
+            project
+            .members(|member| {
+                member.remove_member(name)?;
+                Ok(())
             })
         },
         MemberCommands::Assign { name, id } => {
-            Aplan::load(&project_name)?
-            .member(|member| {
-                member.assign_task_to_member(id.clone(), name);
+            project
+            .members(|member| {
+                member.assign_task_to_member(id.clone(), name)?;
+                Ok(())
             })
         },
         MemberCommands::RemoveTask { name, id } => {
-            Aplan::load(&project_name)?
-            .member(|member| {
-                member.remove_member_from_task(id.clone(), name);
+            project
+            .members(|member| {
+                member.remove_member_from_task(id.clone(), name)?;
+                Ok(())
             })
         },
-    })
+    }?
+    .clone())
 }
 
-fn process_args(cli: Cli) -> Result<Project, Error>  {
+fn process_args(cli: Cli) -> Result<(), Error>  {
 
     let project_name = &cli.project;
     match &cli.command {
@@ -253,29 +271,8 @@ fn process_args(cli: Cli) -> Result<Project, Error>  {
             process_wsb(command, project_name)?
         }
     }
-    .save()
-    .run(|res| -> Result<(), Error> {
-        match res {
-            Return::Task(task) => {
-                println!("{}", task.to_string())
-            }
-            Return::Dot(filename, text) | Return::Tree(filename, text) => {
-                util::to_file(filename.as_deref(), text.to_string())
-            },
-            Return::MembersList(members) => {
-                members.iter().for_each(|member| println!("{}", member))
-            },
-            Return::Member(member) => {
-                println!("{}", member)
-            },
-            Return::Tasks(tasks) => {
-                tasks.iter().for_each(|task| {
-                    println!("{}", task)
-                })
-            },
-        }
-        Ok(())
-    })
+    .save()?;
+    Ok(())
 }
 
 fn main() {

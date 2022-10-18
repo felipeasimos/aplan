@@ -35,7 +35,7 @@ impl WSB {
     }
 
     pub(crate) fn completion_percentage(&self, tasks: &Tasks) -> f64 {
-        self.done_tasks(tasks).count() as f64 / tasks.len() as f64
+        tasks.done_tasks().count() as f64 / tasks.len() as f64
     }
 
     pub(crate) fn earned_value(&self, tasks: &Tasks) -> f64 {
@@ -311,30 +311,6 @@ impl WSB {
             "{}\n{}",
             root,
             self.subtasks_to_tree_str(&TaskId::get_root_id(), "", tasks))
-    }
-
-    pub(crate) fn tasks<'a>(&'a self, tasks: &'a Tasks) -> impl Iterator<Item=&Task> {
-        tasks
-            .tasks()
-            .filter(|task| task.is_leaf())
-    }
-
-    pub(crate) fn todo_tasks<'a>(&'a self, tasks: &'a Tasks) -> impl Iterator<Item=&Task> {
-        tasks
-            .tasks()
-            .filter(|task| task.is_leaf() && task.status != TaskStatus::Done)
-    }
-
-    pub(crate) fn in_progress_tasks<'a>(&'a self, tasks: &'a Tasks) -> impl Iterator<Item=&Task> {
-        tasks
-            .tasks()
-            .filter(|task| task.is_leaf() && task.status == TaskStatus::InProgress)
-    }
-
-    pub(crate) fn done_tasks<'a>(&'a self, tasks: &'a Tasks) -> impl Iterator<Item=&Task> {
-        tasks
-            .tasks()
-            .filter(|task| task.is_leaf() && task.status == TaskStatus::Done)
     }
 }
 

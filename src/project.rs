@@ -1,11 +1,12 @@
-use std::{path::PathBuf, str::FromStr, collections::HashMap};
+use std::{path::PathBuf, str::FromStr};
 
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 
 use std::io::Write;
 
-use crate::{subsystem::wsb::WSB, error::Error, task::{task_id::TaskId, tasks::Tasks}, member::{Member, members::Members}};
+use crate::{subsystem::wsb::WSB, error::Error, task::{task_id::TaskId, tasks::Tasks}, member::members::Members, builder::{wsb_execution::WSBExecution, member_execution::MemberExecution}, prelude::Member};
+
+pub type Aplan = Project;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Project {
@@ -17,7 +18,8 @@ pub struct Project {
 }
 
 impl Project {
-    pub(crate) fn new(name: &str) -> Self {
+
+    pub fn new(name: &str) -> Self {
         let mut tasks = Tasks::new();
         let wsb = WSB::new(name, &mut tasks);
         Self {
@@ -25,6 +27,53 @@ impl Project {
             tasks,
             members: Members::new()
         }
+    }
+
+    pub fn load(name: &str) -> Result<Self, Error> {
+        let json_contents = Self::project_file_contents(&name)?;
+        Self::from_json(&json_contents)
+    }
+
+    pub fn load_from(filename: &str) -> Result<Self, Error> {
+        let json_contents = std::fs::read_to_string(filename.clone())
+            .or_else(|_| Err(Error::FileRead(filename.to_string())))?;
+        Self::from_json(&json_contents)
+    }
+
+    pub fn save(&mut self) -> Result<&mut Self, Error> {
+        let filename = Self::filename_from_project_name(self.name())?;
+        self.save_to(&filename)
+    }
+
+    pub fn save_to(&mut self, filename: &str) -> Result<&mut Self, Error> {
+        let mut file = std::fs::File::create(filename)
+            .or_else(|_| Err(Error::OpenFile(filename.to_string())))?;
+        write!(file, "{}", self.to_json()?)
+            .or_else(|_| Err(Error::FileWrite(filename.to_string())))?;
+        Ok(self)
+    }
+
+    pub fn name(&self) -> &str {
+        self.wsb.name(&self.tasks)
+    }
+
+    pub fn wsb<F>(&mut self, mut func: F) -> Result<&mut Self, Error>
+    where F: FnMut(&mut WSBExecution<'_>) -> Result<(), Error> {
+        {
+            let mut wsb_execution = WSBExecution::new(self);
+            func(&mut wsb_execution)?;
+        }
+        Ok(self)
+    }
+
+    pub fn members<F>(&mut self, mut func: F) -> Result<&mut Self, Error>
+    where F: FnMut(&mut MemberExecution<'_>) -> Result<(), Error> {
+
+        {
+            let mut member_execution = MemberExecution::new(self);
+            func(&mut member_execution)?;
+        }
+        Ok(self)
     }
 
     pub(crate) fn assign_task_to_member(&mut self, id: TaskId, name: &str) -> Result<(), Error> {
@@ -38,7 +87,7 @@ impl Project {
         Ok(self.members.get_mut(name)?.remove_task(id))
     }
 
-    pub(crate) fn remove_member(&mut self, name: &str) -> Result<(), Error> {
+    pub(crate) fn remove_member(&mut self, name: &str) -> Result<Member, Error> {
 
         self.members.get(name)?
             .clone()
@@ -46,42 +95,20 @@ impl Project {
             .try_for_each(|id| {
                 self.remove_member_from_task(&id, name)
             })?;
-        self.members.remove(name)?;
-        Ok(())
+        self.members.remove(name)
     }
 
-    pub(crate) fn name(&self) -> &str {
-        self.wsb.name(&self.tasks)
-    }
-
-    pub(crate) fn load(name: &str) -> Result<Self, Error> {
-        let json_contents = Self::project_file_contents(&name)?;
-        Self::from_json(&json_contents)
-    }
-
-    pub(crate) fn save(&self) -> Result<(), Error> {
-        let filename = Self::filename_from_project_name(self.name())?;
-        self.save_to(&filename)
-    }
-
-    pub(crate) fn save_to(&self, filename: &str) -> Result<(), Error> {
-        let mut file = std::fs::File::create(filename)
-            .or_else(|_| Err(Error::OpenFile(filename.to_string())))?;
-        write!(file, "{}", self.to_json()?)
-            .or_else(|_| Err(Error::FileWrite(filename.to_string())))
-    }
-
-    pub(crate) fn from_json(project_str: &str) -> Result<Self, Error> {
+    fn from_json(project_str: &str) -> Result<Self, Error> {
         serde_json::from_str(project_str)
             .or_else(|_| Err(Error::ParseJsonContents(project_str.to_string())))
     }
 
-    pub(crate) fn to_json(&self) -> Result<String, Error> {
+    fn to_json(&self) -> Result<String, Error> {
         serde_json::to_string(self)
             .or_else(|_| Err(Error::ParseProjectContents))
     }
 
-    pub(crate) fn filename_from_project_name(name: &str) -> Result<String, Error> {
+    fn filename_from_project_name(name: &str) -> Result<String, Error> {
 
         let filename = ".".to_string() + &name;
         let mut filename : PathBuf = PathBuf::from_str(&filename)
@@ -92,17 +119,7 @@ impl Project {
         Ok(filename.to_str().unwrap().to_string())
     }
 
-    pub(crate) fn project_name_from_filename(filename: &str) -> Result<String, Error> {
-
-        let filename = PathBuf::from_str(filename)
-            .or_else(|_| Err(Error::FileNotFound(filename.to_string())))?;
-        // TODO: check safety of this unwrap
-        let name : String = filename.file_stem().unwrap()
-            .to_str().unwrap()[1..].to_string();
-        Ok(name)
-    }
-
-    pub(crate) fn project_file_contents(name: &str) -> Result<String, Error> {
+    fn project_file_contents(name: &str) -> Result<String, Error> {
         let filename = Self::filename_from_project_name(name)?;
         Ok(std::fs::read_to_string(filename.clone())
             .or_else(|_| Err(Error::FileRead(filename.to_string())))?)

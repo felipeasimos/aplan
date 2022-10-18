@@ -1,76 +1,42 @@
-use crate::{task::task_id::TaskId, error::Error, project::Project, member::Member};
+use crate::{task::task_id::TaskId, prelude::{Project, Member, Error}};
 
-use super::project_execution::Return;
-
-#[derive(Debug, Clone)]
-enum MemberAction {
-    ListMembers,
-    GetMember(String),
-    AddMember(String),
-    RemoveMember(String),
-    AssignTaskToMember(TaskId, String),
-    RemoveMemberFromTask(TaskId, String),
+#[derive(Debug)]
+pub struct MemberExecution<'a> {
+    project: &'a mut Project
 }
 
-#[derive(Debug, Clone)]
-pub struct MemberExecution {
-    actions: Vec<MemberAction>,
-}
+impl<'a> MemberExecution<'a> {
 
-impl MemberExecution {
-
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(project: &'a mut Project) -> Self {
         Self {
-            actions: Vec::new()
+            project
         }
     }
 
-    pub fn list_members(&mut self) -> &mut Self {
-        self.actions.push(MemberAction::ListMembers);
-        self
+    pub fn list_members(&mut self) -> impl Iterator<Item=&Member> {
+        self.project.members.members()
     }
 
-    pub fn get_member(&mut self, name: &str) -> &mut Self {
-        self.actions.push(MemberAction::GetMember(name.to_string()));
-        self
+    pub fn get_member(&mut self, name: &str) -> Result<&Member, Error> {
+        self.project.members.get(name)
     }
 
-    pub fn add_member(&mut self, name: &str) -> &mut Self {
-        self.actions.push(MemberAction::AddMember(name.to_string()));
-        self
+    pub fn add_member(&mut self, name: &str) -> Result<&mut Self, Error> {
+        self.project.members.insert(name.to_string())?;
+        Ok(self)
     }
 
-    pub fn remove_member(&mut self, name: &str) -> &mut Self {
-        self.actions.push(MemberAction::RemoveMember(name.to_string()));
-        self
+    pub fn remove_member(&mut self, name: &str) -> Result<Member, Error> {
+        self.project.remove_member(name)
     }
 
-    pub fn assign_task_to_member(&mut self, id: TaskId, name: &str) -> &mut Self {
-        self.actions.push(MemberAction::AssignTaskToMember(id, name.to_string()));
-        self
+    pub fn assign_task_to_member(&mut self, id: TaskId, name: &str) -> Result<&mut Self, Error> {
+        self.project.assign_task_to_member(id, name)?;
+        Ok(self)
     }
 
-    pub fn remove_member_from_task(&mut self, id: TaskId, name: &str) -> &mut Self {
-        self.actions.push(MemberAction::RemoveMemberFromTask(id, name.to_string()));
-        self
-    }
-
-    pub(crate) fn run(self, project: &mut Project) -> Result<Vec<Return>, Error> {
-        Ok(self.actions
-            .into_iter()
-            .map(|action| -> Result<Option<Return>, Error> {
-                Ok(match action {
-                    MemberAction::ListMembers => { Some(Return::MembersList(project.members.members().collect::<Vec<Member>>())) },
-                    MemberAction::GetMember(name) => { Some(Return::Member(project.members.get(&name)?.clone())) },
-                    MemberAction::AddMember(name) => { project.members.insert(name); None },
-                    MemberAction::RemoveMember(name) => { project.remove_member(&name)?; None },
-                    MemberAction::AssignTaskToMember(task_id, name) => { project.assign_task_to_member(task_id, &name)?; None },
-                    MemberAction::RemoveMemberFromTask(task_id, name) => { project.remove_member_from_task(&task_id, &name)?; None },
-                })
-            })
-            .collect::<Result<Vec<Option<Return>>, Error>>()?
-            .into_iter()
-            .filter_map(|res| res)
-            .collect::<Vec<Return>>())
+    pub fn remove_member_from_task(&mut self, id: TaskId, name: &str) -> Result<&mut Self, Error> {
+        self.project.remove_member_from_task(&id, name)?;
+        Ok(self)
     }
 }
