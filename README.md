@@ -14,7 +14,7 @@ It is also provided as a crate.
   - [x] inherent value analysis
   - [x] PV/AC
   - [x] SPI/PV/EV/SPI/SV/CPI/CV
-  - [ ] Member management
+  - [x] Member management
   - [ ] Gantt
 - [ ] Burndown Manager
   - [ ] Viewer

@@ -106,6 +106,19 @@ impl Task {
     pub fn has_member(&self, name: &str) -> bool {
         self.members_names.contains(name)
     }
+
+    pub fn to_dot_str(&self) -> String {
+        let members = self.members_names.iter().fold(String::new(), |acc, name| acc + name + " ");
+        let members = members.trim_end();
+        format!(
+            "{} - {} {}\npv: {} ac: {}\n[{}]",
+            self.id().to_string(),
+            self.name(),
+            self.status.to_icon(),
+            self.get_planned_value(),
+            self.get_actual_cost(),
+            members)
+    }
 }
 
 impl Display for Task {

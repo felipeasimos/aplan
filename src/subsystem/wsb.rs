@@ -273,11 +273,11 @@ impl WSB {
     fn subtasks_to_dot_str(&self, root_id: &TaskId, tasks: &Tasks) -> String {
         let mut s = String::new();
         let root = tasks.get(root_id).unwrap();
-        let root_str = root.to_string();
+        let root_str = root.to_dot_str();
 
         root.child_ids().for_each(|child_id| {
             let child = tasks.get(&child_id).unwrap();
-            s += &format!("\t\"{}\" -> \"{}\"\n", root_str, child.to_string());
+            s += &format!("\t\"{}\" -> \"{}\"\n", root_str, child.to_dot_str());
             s += &self.subtasks_to_dot_str(&child_id, tasks);
         });
         s
