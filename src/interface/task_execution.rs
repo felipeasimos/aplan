@@ -1,4 +1,4 @@
-use crate::{task::task_id::TaskId, project::Project, error::Error, prelude::Task};
+use crate::{task::task_id::TaskId, project::Project, error::Error};
 
 #[derive(Debug)]
 pub struct TaskExecution<'a> {
@@ -19,7 +19,7 @@ impl<'a> TaskExecution<'a> {
     }
 
     pub fn remove(&mut self, id: &TaskId) -> Result<&mut Self, Error> {
-        self.project.tasks.remove(id)?;
+        self.project.tasks.remove(id, &self.project.members)?;
         Ok(self)
     }
 

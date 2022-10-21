@@ -1,10 +1,8 @@
-use std::{path::PathBuf, str::FromStr};
-
 use serde::{Deserialize, Serialize};
 
 use std::io::Write;
 
-use crate::{prelude::{Tasks, Members, Error, TaskId, Member}, interface::{task_execution::TaskExecution, member_execution::MemberExecution}, sprint::sprint::Sprints};
+use crate::{prelude::{Tasks, Members, Error}, interface::{task_execution::TaskExecution, member_execution::MemberExecution}, sprint::sprint::Sprints, util::DEFAULT_FILENAME};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Project {
@@ -24,20 +22,14 @@ impl Project {
         }
     }
 
-    pub fn load(name: &str) -> Result<Self, Error> {
-        let json_contents = Self::project_file_contents(&name)?;
-        Self::from_json(&json_contents)
-    }
-
-    pub fn load_from(filename: &str) -> Result<Self, Error> {
-        let json_contents = std::fs::read_to_string(filename.clone())
+    pub fn load(filename: &str) -> Result<Self, Error> {
+        let json_contents = std::fs::read_to_string(&filename)
             .or_else(|_| Err(Error::FileRead(filename.to_string())))?;
         Self::from_json(&json_contents)
     }
 
     pub fn save(&mut self) -> Result<&mut Self, Error> {
-        let filename = Self::filename_from_project_name(self.name())?;
-        self.save_to(&filename)
+        self.save_to(DEFAULT_FILENAME)
     }
 
     pub fn save_to(&mut self, filename: &str) -> Result<&mut Self, Error> {
@@ -86,23 +78,6 @@ impl Project {
     fn to_json(&self) -> Result<String, Error> {
         serde_json::to_string(self)
             .or_else(|_| Err(Error::ParseProjectContents))
-    }
-
-    fn filename_from_project_name(name: &str) -> Result<String, Error> {
-
-        let filename = ".".to_string() + &name;
-        let mut filename : PathBuf = PathBuf::from_str(&filename)
-            .or_else(|_| Err(Error::FileNotFound(filename.to_string())))?;
-        filename.set_extension("ap");
-
-        // TODO: check safety of this unwrap
-        Ok(filename.to_str().unwrap().to_string())
-    }
-
-    fn project_file_contents(name: &str) -> Result<String, Error> {
-        let filename = Self::filename_from_project_name(name)?;
-        Ok(std::fs::read_to_string(filename.clone())
-            .or_else(|_| Err(Error::FileRead(filename.to_string())))?)
     }
 }
 

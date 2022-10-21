@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use serde_with::serde_as;
 
-use crate::prelude::{TaskId, Error};
+use crate::prelude::{TaskId, Error, Members};
 
 use super::{Task, TaskStatus};
 
@@ -177,11 +177,15 @@ impl Tasks {
         })
     }
 
-    pub(crate) fn remove(&mut self, task_id: &TaskId) -> Result<Task, Error> {
+    pub(crate) fn remove(&mut self, task_id: &TaskId, members: &Members) -> Result<Task, Error> {
         // don't remove if this is a trunk node
-        let mut task_id = task_id.clone();
+        dbg!(&task_id);
         if self.get(&task_id)?.num_child > 0 {
             return Err(Error::TrunkCannotBeRemoved(task_id.clone()));
+        }
+        // task can't be removed if there are members assigned to it
+        if members.members().any(|member| member.is_assigned_to(&task_id)) {
+            return Err(Error::CannotRemoveAssignedTask(task_id.clone()))
         }
 
         self.remove_task_stats_from_tree(&task_id)?;
@@ -190,7 +194,8 @@ impl Tasks {
         let parent_childs: _ = {
             let mut parent = self.get_mut(&parent_id)?;
             parent.num_child -= 1;
-            parent.id().child_ids(parent.num_child+1)
+            parent.id()
+                .child_ids(parent.num_child+1)
                 .collect::<Vec<TaskId>>()
         };
 
@@ -206,10 +211,6 @@ impl Tasks {
             }
             Ok(())
         })?;
-
-        // remove last id child from the parent
-        task_id.as_vec_mut()[layer_idx] = parent_childs.len() as u32;
-        self.remove_task(&task_id)?;
 
         Ok(task)
     }
@@ -377,6 +378,7 @@ mod tests {
     #[test]
     fn tasks() {
         let mut tasks = Tasks::new("Project");
+        let members = Members::new();
 
         let root = TaskId::get_root_id();
         let task_id_1 = TaskId::new(vec![1]);
@@ -435,19 +437,19 @@ mod tests {
         assert_eq!(tasks.planned_value(), 62.0);
         assert_eq!(tasks.get(&task_id_3_1).unwrap().get_planned_value(), 20.0);
         assert_eq!(tasks.get(&task_id_3).unwrap().get_planned_value(), 20.0);
-        assert_eq!(tasks.remove_task(&task_id_2_1), Ok(Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
+        assert_eq!(tasks.remove(&task_id_2_1, &members), Ok(Task::new(TaskId::new(vec![2,1]), "Create argument parser")));
 
         assert_eq!(tasks.planned_value(), 55.0);
         assert_eq!(tasks.get(&task_id_2_1), Ok(&Task::new(TaskId::new(vec![2, 1]), "Create help menu")));
         assert_eq!(tasks.get(&task_id_2), Ok(&Task::new(TaskId::new(vec![2]), "Create CLI tool")));
         assert_eq!(tasks.get(&task_id_2).unwrap().get_planned_value(), 33.0);
 
-        assert_eq!(tasks.remove_task(&task_id_2), Err(Error::TrunkCannotBeRemoved(task_id_2.clone())));
+        assert_eq!(tasks.remove(&task_id_2, &members), Err(Error::TrunkCannotBeRemoved(task_id_2.clone())));
         assert_eq!(tasks.planned_value(), 55.0);
-        assert_eq!(tasks.remove_task(&task_id_2_1), Ok(Task::new(TaskId::new(vec![2,1]), "Create help menu")));
+        assert_eq!(tasks.remove(&task_id_2_1, &members), Ok(Task::new(TaskId::new(vec![2,1]), "Create help menu")));
         assert_eq!(tasks.planned_value(), 22.0);
         assert_eq!(tasks.get(&task_id_2).unwrap().get_planned_value(), 0.0);
-        assert_eq!(tasks.remove_task(&task_id_2), Ok(Task::new(TaskId::new(vec![2]), "Create CLI tool")));
+        assert_eq!(tasks.remove(&task_id_2, &members), Ok(Task::new(TaskId::new(vec![2]), "Create CLI tool")));
         assert_eq!(tasks.planned_value(), 22.0);
 
         assert_eq!(tasks.get(&task_id_1), Ok(&Task::new(TaskId::new(vec![1]), "Create WSB")));

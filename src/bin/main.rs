@@ -7,9 +7,9 @@ use aplan::prelude::*;
 #[clap(author, version, about, long_about = None)]
 #[clap(propagate_version = true)]
 struct Cli {
-    /// Name of the project to operate on
-    #[clap(short, long, value_parser, default_value = "aplan")]
-    project: String,
+    /// File from which we will load and save the project
+    #[clap(short, long, value_parser, default_value = util::DEFAULT_FILENAME)]
+    filename: String,
 
     #[clap(subcommand)]
     command: Commands
@@ -22,18 +22,17 @@ enum Commands {
         #[clap(subcommand)]
         command: TaskCommands
     },
-    /// Arrange tasks in a priority queue, where tasks have status of "not started", "in progress"
-    /// or "done"
-    Burndown {
-
-    },
     /// Manage project members
     Member {
         #[clap(subcommand)]
         command: MemberCommands
     },
     /// Create project file
-    Init { }
+    Init {
+        /// Name of the project to create
+        #[clap(short, long, value_parser, default_value = "aplan")]
+        project: String,
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
@@ -153,13 +152,13 @@ fn task_id_parser(s: &str) -> Result<TaskId, String> {
     TaskId::parse(s).or_else(|_| Err(s.to_string()))
 }
 
-fn process_tasks(command: &TaskCommands, project_name: &str) -> Result<Project, Error> {
-    let mut project = Project::load(&project_name)?;
+fn process_tasks(command: &TaskCommands, project_filename: &str) -> Result<Project, Error> {
+    let mut project = Project::load(project_filename)?;
     match command {
         TaskCommands::Show { format, output } => {
             match format {
-                ShowFormat::Dot => util::to_file(output.as_deref(), project.tasks().to_dot_str()),
-                ShowFormat::Text => util::to_file(output.as_deref(), project.tasks().to_tree_str()),
+                ShowFormat::Dot => util::to_file(output.as_deref(), project.tasks().to_dot_str())?,
+                ShowFormat::Text => util::to_file(output.as_deref(), project.tasks().to_tree_str())?,
             }
         },
         TaskCommands::Add { parent, name } => {
@@ -201,8 +200,8 @@ fn process_tasks(command: &TaskCommands, project_name: &str) -> Result<Project, 
     Ok(project)
 }
 
-fn process_member(command: &MemberCommands, project_name: &str) -> Result<Project, Error> {
-    let mut project = Project::load(&project_name)?;
+fn process_member(command: &MemberCommands, project_filename: &str) -> Result<Project, Error> {
+    let mut project = Project::load(project_filename)?;
     Ok(match command {
         MemberCommands::List {  } => {
             project
@@ -245,20 +244,18 @@ fn process_member(command: &MemberCommands, project_name: &str) -> Result<Projec
 
 fn process_args(cli: Cli) -> Result<(), Error>  {
 
-    let project_name = &cli.project;
     match &cli.command {
-        Commands::Burndown {  } => todo!(),
-        Commands::Init { .. } => {
-            Project::new(&cli.project)
+        Commands::Init { project } => {
+            Project::new(project)
         },
         Commands::Member { command } => {
-            process_member(command, project_name)?
+            process_member(command, &cli.filename)?
         },
         Commands::Task { command } => {
-            process_tasks(command, project_name)?
+            process_tasks(command, &cli.filename)?
         }
     }
-    .save()?;
+    .save_to(&cli.filename)?;
     Ok(())
 }
 

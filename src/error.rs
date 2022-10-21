@@ -54,6 +54,9 @@ pub enum Error {
     #[error("Can't remove members from trunk tasks like '{0}' directly")]
     TrunkCannotRemoveMember(TaskId),
 
+    #[error("Can't remove tasks with members assigned to it")]
+    CannotRemoveAssignedTask(TaskId),
+
     #[error("Couldn't parse JSON to project: '{0}'")]
     ParseJsonContents(String),
 

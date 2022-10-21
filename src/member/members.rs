@@ -73,8 +73,10 @@ impl Members {
     pub(crate) fn remove_member(&mut self, name: &str, tasks: &mut Tasks) -> Result<Member, Error> {
 
         self.get(name)?
-            .clone()
             .task_ids()
+            .cloned()
+            .collect::<Vec<_>>()
+            .iter()
             .try_for_each(|id| {
                 self.remove_member_from_task(&id, name, tasks)
             })?;
