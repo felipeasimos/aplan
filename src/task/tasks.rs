@@ -186,16 +186,19 @@ impl Tasks {
 
     pub(crate) fn remove(&mut self, task_id: &TaskId, members: &Members) -> Result<Task, Error> {
         // don't remove if this is a trunk node
-        dbg!(&task_id);
-        if self.get(&task_id)?.num_child > 0 {
+        if self.get(task_id)?.num_child > 0 {
             return Err(Error::TrunkCannotBeRemoved(task_id.clone()));
         }
         // task can't be removed if there are members assigned to it
-        if members.members().any(|member| member.is_assigned_to(&task_id)) {
+        if members.members().any(|member| member.is_assigned_to(task_id)) {
             return Err(Error::CannotRemoveAssignedTask(task_id.clone()))
         }
+        // task can't be removed if has or is a dependency
+        if !self.get(task_id)?.dependencies.is_empty() || !self.get(task_id)?.dependency_for.is_empty() {
+            return Err(Error::CannotRemoveWithDependency(task_id.clone()))
+        }
 
-        self.remove_task_stats_from_tree(&task_id)?;
+        self.remove_task_stats_from_tree(task_id)?;
 
         let parent_id = task_id.parent()?;
         let parent_childs: _ = {
