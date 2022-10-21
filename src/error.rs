@@ -48,6 +48,9 @@ pub enum Error {
     #[error("Cannot remove node '{0}' with dependencies")]
     CannotRemoveWithDependency(TaskId),
 
+    #[error("Creating this dependency edge ['{0}' -> '{1}'] would create a cycle")]
+    EdgeCreationLeadsToCycle(TaskId, TaskId),
+
     #[error("Root task '{0}' doesn't have a parent")]
     NoParent(TaskId),
 

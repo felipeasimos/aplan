@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Serialize, Deserialize};
 use serde_with::serde_as;
@@ -91,6 +91,11 @@ impl Tasks {
         }
         // SAFETY: we already performed `get_mut`, so we know these exist
         self.store.get_mut(task_id).unwrap().dependencies.insert(dependency_id.clone());
+        // check if adding this dependency creates a cycle
+        if !self.dependency_cycle_check()? {
+            self.store.get_mut(task_id).unwrap().dependencies.remove(dependency_id);
+            return Err(Error::EdgeCreationLeadsToCycle(task_id.clone(), dependency_id.clone()))
+        }
         self.store.get_mut(dependency_id).unwrap().dependency_for.insert(task_id.clone());
         Ok(())
     }
@@ -377,6 +382,32 @@ impl Tasks {
     pub fn get_done_tasks(&self) -> impl Iterator<Item=&Task> {
         self.get_tasks()
             .filter(|task| task.status == TaskStatus::Done)
+    }
+
+    pub fn get_dependency_roots(&self) -> impl Iterator<Item=&Task> {
+        self.get_tasks()
+            .filter(|task| task.dependency_for.is_empty())
+    }
+
+    fn dependency_cycle_check(&self) -> Result<bool, Error> {
+        let mut stack : Vec<&TaskId> = self.get_dependency_roots().map(|task| task.id()).collect::<Vec<&TaskId>>();
+        let mut visited : HashSet<&TaskId> = stack.iter().cloned().collect::<HashSet<&TaskId>>();
+
+        while !stack.is_empty() {
+            let current = stack.first().unwrap().clone();
+
+            if !self.get(current)?.dependencies.iter().filter(|id| !visited.contains(id)).all(|id| {
+                if stack.contains(&id) {
+                    return false;
+                }
+                stack.push(id);
+                true
+            }) {
+                return Ok(false)
+            }
+            visited.insert(current);
+        }
+        Ok(true)
     }
 }
 
