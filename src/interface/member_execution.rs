@@ -27,16 +27,16 @@ impl<'a> MemberExecution<'a> {
     }
 
     pub fn remove_member(&mut self, name: &str) -> Result<Member, Error> {
-        self.project.remove_member(name)
+        self.project.members.remove_member(name, &mut self.project.tasks)
     }
 
     pub fn assign_task_to_member(&mut self, id: TaskId, name: &str) -> Result<&mut Self, Error> {
-        self.project.assign_task_to_member(id, name)?;
+        self.project.members.assign_task_to_member(id, name, &mut self.project.tasks)?;
         Ok(self)
     }
 
     pub fn remove_member_from_task(&mut self, id: TaskId, name: &str) -> Result<&mut Self, Error> {
-        self.project.remove_member_from_task(&id, name)?;
+        self.project.members.remove_member_from_task(&id, name, &mut self.project.tasks)?;
         Ok(self)
     }
 }

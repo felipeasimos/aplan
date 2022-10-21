@@ -78,36 +78,6 @@ impl Project {
         Ok(self)
     }
 
-    pub(crate) fn assign_task_to_member(&mut self, id: TaskId, name: &str) -> Result<(), Error> {
-
-        if self.tasks.get(&id)?.is_trunk() {
-            return Err(Error::TrunkCannotAddMember(id.clone()))
-        }
-
-        Ok(self.members.get_mut(name)?.add_task(id))
-    }
-
-    pub(crate) fn remove_member_from_task(&mut self, id: &TaskId, name: &str) -> Result<(), Error> {
-        let task = self.tasks.get(id)?;
-        if task.is_trunk() {
-            return Err(Error::TrunkCannotRemoveMember(id.clone()))
-        } else if !self.members.get(name)?.is_assigned_to(id) {
-            return Err(Error::CannotRemoveMemberFromTask(id.clone(), name.to_string()))
-        }
-        Ok(self.members.get_mut(name)?.remove_task(id))
-    }
-
-    pub(crate) fn remove_member(&mut self, name: &str) -> Result<Member, Error> {
-
-        self.members.get(name)?
-            .clone()
-            .task_ids()
-            .try_for_each(|id| {
-                self.remove_member_from_task(&id, name)
-            })?;
-        self.members.remove(name)
-    }
-
     fn from_json(project_str: &str) -> Result<Self, Error> {
         serde_json::from_str(project_str)
             .or_else(|_| Err(Error::ParseJsonContents(project_str.to_string())))

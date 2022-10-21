@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::prelude::Error;
+use crate::prelude::{Error, Tasks, TaskId};
 
 use super::Member;
 
@@ -48,5 +48,36 @@ impl Members {
     pub(crate) fn get_mut(&mut self, name: &str) -> Result<&mut Member, Error> {
         self.members.get_mut(name)
             .ok_or_else(|| Error::MemberNotFound(name.to_string()))
+    }
+
+    pub(crate) fn assign_task_to_member(&mut self, id: TaskId, name: &str, tasks: &mut Tasks) -> Result<(), Error> {
+
+        if tasks.get(&id)?.is_trunk() {
+            return Err(Error::TrunkCannotAddMember(id.clone()))
+        }
+
+        self.get_mut(name)?.add_task(id);
+        Ok(())
+    }
+
+    pub(crate) fn remove_member_from_task(&mut self, id: &TaskId, name: &str, tasks: &mut Tasks) -> Result<(), Error> {
+        let task = tasks.get(id)?;
+        if task.is_trunk() {
+            return Err(Error::TrunkCannotRemoveMember(id.clone()))
+        } else if !self.get(name)?.is_assigned_to(id) {
+            return Err(Error::CannotRemoveMemberFromTask(id.clone(), name.to_string()))
+        }
+        Ok(self.get_mut(name)?.remove_task(id))
+    }
+
+    pub(crate) fn remove_member(&mut self, name: &str, tasks: &mut Tasks) -> Result<Member, Error> {
+
+        self.get(name)?
+            .clone()
+            .task_ids()
+            .try_for_each(|id| {
+                self.remove_member_from_task(&id, name, tasks)
+            })?;
+        self.remove(name)
     }
 }
