@@ -4,28 +4,23 @@ use serde::{Deserialize, Serialize};
 
 use std::io::Write;
 
-use crate::{subsystem::wsb::WSB, error::Error, task::{task_id::TaskId, tasks::Tasks}, member::members::Members, builder::{wsb_execution::WSBExecution, member_execution::MemberExecution}, prelude::Member};
-
-pub type Aplan = Project;
+use crate::{prelude::{Tasks, Members, Error, TaskId, Member}, interface::{task_execution::TaskExecution, member_execution::MemberExecution}, sprint::sprint::Sprints};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Project {
 
-    pub(crate) wsb: WSB,
     pub(crate) tasks: Tasks,
-    pub(crate) members: Members
-    // burndown: Burndown
+    pub(crate) members: Members,
+    pub(crate) sprints: Sprints
 }
 
 impl Project {
 
     pub fn new(name: &str) -> Self {
-        let mut tasks = Tasks::new();
-        let wsb = WSB::new(name, &mut tasks);
         Self {
-            wsb,
-            tasks,
-            members: Members::new()
+            tasks: Tasks::new(name),
+            members: Members::new(),
+            sprints: Sprints::new()
         }
     }
 
@@ -54,21 +49,28 @@ impl Project {
     }
 
     pub fn name(&self) -> &str {
-        self.wsb.name(&self.tasks)
+        self.tasks.name()
     }
 
-    pub fn wsb<F>(&mut self, mut func: F) -> Result<&mut Self, Error>
-    where F: FnMut(&mut WSBExecution<'_>) -> Result<(), Error> {
+    pub fn tasks(&self) -> &Tasks {
+        &self.tasks
+    }
+
+    pub fn members(&self) -> &Members {
+        &self.members
+    }
+
+    pub fn tasks_mut<F>(&mut self, mut func: F) -> Result<&mut Self, Error>
+    where F: FnMut(&mut TaskExecution<'_>) -> Result<(), Error> {
         {
-            let mut wsb_execution = WSBExecution::new(self);
+            let mut wsb_execution = TaskExecution::new(self);
             func(&mut wsb_execution)?;
         }
         Ok(self)
     }
 
-    pub fn members<F>(&mut self, mut func: F) -> Result<&mut Self, Error>
+    pub fn members_mut<F>(&mut self, mut func: F) -> Result<&mut Self, Error>
     where F: FnMut(&mut MemberExecution<'_>) -> Result<(), Error> {
-
         {
             let mut member_execution = MemberExecution::new(self);
             func(&mut member_execution)?;
@@ -77,13 +79,21 @@ impl Project {
     }
 
     pub(crate) fn assign_task_to_member(&mut self, id: TaskId, name: &str) -> Result<(), Error> {
-        self.wsb.assign_task_to_member(&id, name, &mut self.tasks)?;
+
+        if self.tasks.get(&id)?.is_trunk() {
+            return Err(Error::TrunkCannotAddMember(id.clone()))
+        }
 
         Ok(self.members.get_mut(name)?.add_task(id))
     }
 
     pub(crate) fn remove_member_from_task(&mut self, id: &TaskId, name: &str) -> Result<(), Error> {
-        self.wsb.remove_member_from_task(&id, name, &mut self.tasks)?;
+        let task = self.tasks.get(id)?;
+        if task.is_trunk() {
+            return Err(Error::TrunkCannotRemoveMember(id.clone()))
+        } else if !self.members.get(name)?.is_assigned_to(id) {
+            return Err(Error::CannotRemoveMemberFromTask(id.clone(), name.to_string()))
+        }
         Ok(self.members.get_mut(name)?.remove_task(id))
     }
 

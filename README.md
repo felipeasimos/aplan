@@ -6,44 +6,12 @@ All you need is a plan.
 
 It is also provided as a crate.
 
-## Roadmap
-
-- [ ] WSB manager
-  - [x] Store tasks with hashmap
-  - [x] Control change to tasks (add, remove, update)
-  - [x] inherent value analysis
-  - [x] PV/AC
-  - [x] SPI/PV/EV/SPI/SV/CPI/CV
-  - [x] Member management
-  - [ ] Gantt
-- [ ] Burndown Manager
-  - [ ] Viewer
-  - [ ] Plot
-  - [ ] Manage story
-- [ ] CLI
-
 ### Features
 
-It has 2 main subsystems:
+It is divided in 3 main subsystems: 
 
-* `WSB` - Arrange the tasks in a tree structure, where children status affects the parent.
+* `Tasks` - Arrange the tasks in n-tree structure used to analyze project progression, set task dependency graph.
 
-* `Burndown` - Arrange the tasks in a priority queue, where tasks have status of "not checked out", "checked out" and "done".
+* `Members` - Manage Members, assign member to tasks, set weekly availability and set routine exceptions.
 
-Both can be accessed through a subcommand:
-
-```
-aplan wsb show
-aplan wsb add 0 "Create WSB"
-aplan wsb rm
-
-aplan burndown show
-aplan bd show tasks
-```
-
-or, with the crate:
-
-```
-let mut project = Project::new("aplan.ap");
-let task = project.wsb().add_task("1.1", "Value analysis").unwrap();
-```
+* `Sprint` - Set product backlog, sprint backlog and sprint duration, generate Gantt graphs and burndown plots

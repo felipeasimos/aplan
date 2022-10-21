@@ -6,6 +6,8 @@ use std::{fmt::Display, collections::HashSet};
 use serde::{Serialize, Deserialize};
 use serde_with::serde_as;
 
+use crate::prelude::Error;
+
 use self::task_id::TaskId;
 
 #[derive(Serialize, Deserialize)]
@@ -25,7 +27,7 @@ impl Display for TaskStatus {
 }
 
 impl TaskStatus {
-    fn to_icon(&self) -> &'static str {
+    pub(crate) fn to_icon(&self) -> &'static str {
         match &self {
             TaskStatus::InProgress => "✗",
             TaskStatus::Done => "✔"
@@ -43,7 +45,9 @@ pub struct Task {
     pub(crate) num_child: u32,
     pub(crate) status: TaskStatus,
     #[serde_as(as = "HashSet<_>")]
-    members_names: HashSet<String>
+    pub(crate) dependencies: HashSet<TaskId>,
+    #[serde_as(as = "HashSet<_>")]
+    pub(crate) dependency_for: HashSet<TaskId>,
 }
 
 impl Eq for Task {}
@@ -63,7 +67,8 @@ impl Task {
             actual_cost: 0.0,
             num_child: 0,
             status: TaskStatus::InProgress,
-            members_names: HashSet::new()
+            dependencies: HashSet::new(),
+            dependency_for: HashSet::new(),
         }
     }
 
@@ -95,38 +100,21 @@ impl Task {
         self.num_child == 0
     }
 
-    pub(crate) fn add_member(&mut self, name: &str) {
-        self.members_names.insert(name.to_string());
-    }
-
-    pub(crate) fn remove_member(&mut self, name: &str) {
-        self.members_names.remove(name);
-    }
-
-    pub fn has_member(&self, name: &str) -> bool {
-        self.members_names.contains(name)
-    }
-
     pub fn to_dot_str(&self) -> String {
-        let members = self.members_names.iter().fold(String::new(), |acc, name| acc + name + " ");
-        let members = members.trim_end();
         format!(
-            "{} - {} {}\npv: {} ac: {}\n[{}]",
+            "{} - {} {}\npv: {} ac: {}",
             self.id().to_string(),
             self.name(),
             self.status.to_icon(),
             self.get_planned_value(),
-            self.get_actual_cost(),
-            members)
+            self.get_actual_cost())
     }
 }
 
 impl Display for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let members = self.members_names.iter().fold(String::new(), |acc, name| acc + name + " ");
-        let members = members.trim_end();
         match self.id().as_vec().last() {
-            Some(_) => write!(f, "{} - {} {} - [{}]", self.id().to_string(), self.name(), self.status.to_icon(), members),
+            Some(_) => write!(f, "{} - {} {}", self.id().to_string(), self.name(), self.status.to_icon()),
             None => write!(f, "{} {}", self.name().to_string(), self.status.to_icon()),
         }
     }

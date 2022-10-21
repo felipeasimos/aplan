@@ -1,30 +1,43 @@
 pub(crate) mod members;
 
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use std::fmt::Display;
 
+use chrono::{Utc, DateTime};
 use serde::{Serialize, Deserialize};
 use serde_with::serde_as;
 
 use crate::task::task_id::TaskId;
-use crate::subsystem::schedule::Schedule;
+
+type Cost = f64;
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Member {
     name: String,
-    schedule: Schedule,
+    weekly_cost: Cost,
     #[serde_as(as = "HashSet<_>")]
-    tasks: HashSet<TaskId>
+    tasks: HashSet<TaskId>,
+    #[serde_as(as = "Vec<(_, _)>")]
+    routine_exceptions: HashMap<DateTime<Utc>, Cost>
 }
 
 impl Member {
     pub(crate) fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            schedule: Schedule::new(),
-            tasks: HashSet::new()
+            weekly_cost: 0.0,
+            tasks: HashSet::new(),
+            routine_exceptions: HashMap::new()
         }
+    }
+
+    pub fn is_assigned_to(&self, task_id: &TaskId) -> bool {
+        self.tasks.contains(task_id)
+    }
+
+    pub fn task_ids(&self) -> impl Iterator<Item=&TaskId> + '_ {
+        self.tasks.iter()
     }
 
     pub(crate) fn add_task(&mut self, task_id: TaskId) {
@@ -33,10 +46,6 @@ impl Member {
 
     pub(crate) fn remove_task(&mut self, task_id: &TaskId) {
         self.tasks.remove(task_id);
-    }
-
-    pub(crate) fn task_ids(&self) -> impl Iterator<Item=&TaskId> + '_ {
-        self.tasks.iter()
     }
 }
 
