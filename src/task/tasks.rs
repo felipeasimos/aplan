@@ -83,9 +83,11 @@ impl Tasks {
     }
 
     pub(crate) fn add_dependency(&mut self, task_id: &TaskId, dependency_id: &TaskId) -> Result<(), Error> {
-        {
-            self.get_mut(task_id)?;
-            self.get_mut(dependency_id)?;
+        if self.get_mut(task_id)?.is_trunk() {
+            return Err(Error::TrunkCannotHaveDependency(task_id.clone()))
+        }
+        if self.get_mut(dependency_id)?.is_trunk() {
+            return Err(Error::TrunkCannotBeDependency(dependency_id.clone()))
         }
         // SAFETY: we already performed `get_mut`, so we know these exist
         self.store.get_mut(task_id).unwrap().dependencies.insert(dependency_id.clone());
@@ -122,6 +124,11 @@ impl Tasks {
     pub(crate) fn add_task(&mut self, parent_task_id: TaskId, name: &str) -> Result<&mut Task, Error> {
         // get parent
         let parent_task = self.get_mut(&parent_task_id)?;
+
+        // trunks can't be or have dependencies, so we need to check
+        if !parent_task.dependencies.is_empty() || !parent_task.dependency_for.is_empty() {
+            return Err(Error::CannotConvertToTrunk(parent_task_id))
+        }
 
         // increase number of children
         parent_task.num_child += 1;

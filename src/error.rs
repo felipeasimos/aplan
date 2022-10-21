@@ -36,6 +36,15 @@ pub enum Error {
     #[error("Trunk tasks like '{0}' cannot be removed")]
     TrunkCannotBeRemoved(TaskId),
 
+    #[error("Can't have trunk like '{0}' as dependency")]
+    TrunkCannotBeDependency(TaskId),
+
+    #[error("Trunks like '{0}' can't have dependencies")]
+    TrunkCannotHaveDependency(TaskId),
+
+    #[error("Can't convert '{0}' to trunk because it has or is a dependency")]
+    CannotConvertToTrunk(TaskId),
+
     #[error("Root task '{0}' doesn't have a parent")]
     NoParent(TaskId),
 
