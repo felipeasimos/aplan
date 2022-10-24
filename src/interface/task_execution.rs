@@ -18,6 +18,16 @@ impl<'a> TaskExecution<'a> {
         Ok(self)
     }
 
+    pub fn add_dependency(&mut self, id: &TaskId, dependency: &TaskId) -> Result<&mut Self, Error> {
+        self.project.tasks.add_dependency(id, dependency)?;
+        Ok(self)
+    }
+
+    pub fn remove_dependency(&mut self, id: &TaskId, dependency: &TaskId) -> Result<&mut Self, Error> {
+        self.project.tasks.remove_dependency(id, dependency)?;
+        Ok(self)
+    }
+
     pub fn remove(&mut self, id: &TaskId) -> Result<&mut Self, Error> {
         self.project.tasks.remove(id, &self.project.members)?;
         Ok(self)

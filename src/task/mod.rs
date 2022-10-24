@@ -6,8 +6,6 @@ use std::{fmt::Display, collections::HashSet};
 use serde::{Serialize, Deserialize};
 use serde_with::serde_as;
 
-use crate::prelude::Error;
-
 use self::task_id::TaskId;
 
 #[derive(Serialize, Deserialize)]
@@ -113,8 +111,10 @@ impl Task {
 
 impl Display for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let dependencies = self.dependencies.iter().fold(String::new(), |acc, id| acc + &id.to_string() + " ");
+        let dependencies = dependencies.trim_end();
         match self.id().as_vec().last() {
-            Some(_) => write!(f, "{} - {} {}", self.id().to_string(), self.name(), self.status.to_icon()),
+            Some(_) => write!(f, "{} - {} {} -> [{}]", self.id().to_string(), self.name(), self.status.to_icon(), dependencies),
             None => write!(f, "{} {}", self.name().to_string(), self.status.to_icon()),
         }
     }

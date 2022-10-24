@@ -14,6 +14,12 @@ pub struct Tasks {
     store: HashMap<TaskId, Task>
 }
 
+enum DFSVertexStatus {
+    Done,
+    InStack,
+    NotVisited
+}
+
 impl Tasks {
     pub(crate) fn new(name: &str) -> Self {
         let mut store = HashMap::new();
@@ -90,13 +96,13 @@ impl Tasks {
             return Err(Error::TrunkCannotBeDependency(dependency_id.clone()))
         }
         // SAFETY: we already performed `get_mut`, so we know these exist
+        self.store.get_mut(dependency_id).unwrap().dependency_for.insert(task_id.clone());
         self.store.get_mut(task_id).unwrap().dependencies.insert(dependency_id.clone());
-        // check if adding this dependency creates a cycle
-        if !self.dependency_cycle_check()? {
+        if self.dependency_cycle_exists()? {
             self.store.get_mut(task_id).unwrap().dependencies.remove(dependency_id);
+            self.store.get_mut(dependency_id).unwrap().dependency_for.remove(task_id);
             return Err(Error::EdgeCreationLeadsToCycle(task_id.clone(), dependency_id.clone()))
         }
-        self.store.get_mut(dependency_id).unwrap().dependency_for.insert(task_id.clone());
         Ok(())
     }
 
@@ -389,25 +395,44 @@ impl Tasks {
             .filter(|task| task.dependency_for.is_empty())
     }
 
-    fn dependency_cycle_check(&self) -> Result<bool, Error> {
-        let mut stack : Vec<&TaskId> = self.get_dependency_roots().map(|task| task.id()).collect::<Vec<&TaskId>>();
-        let mut visited : HashSet<&TaskId> = stack.iter().cloned().collect::<HashSet<&TaskId>>();
+    fn dfs_has_cycle<'a>(&'a self, stack: &mut Vec<&'a TaskId>, visited: &mut HashMap<&'a TaskId, DFSVertexStatus> ) -> Result<bool, Error> {
 
-        while !stack.is_empty() {
-            let current = stack.first().unwrap().clone();
-
-            if !self.get(current)?.dependencies.iter().filter(|id| !visited.contains(id)).all(|id| {
-                if stack.contains(&id) {
-                    return false;
+        let top = stack.last().cloned().unwrap();
+        for neighbour in self.get(top)?.dependencies.iter() {
+            match visited.get(neighbour) {
+                Some(DFSVertexStatus::InStack) => {
+                    return Ok(true);
+                },
+                Some(DFSVertexStatus::Done) => {},
+                Some(DFSVertexStatus::NotVisited) | None => {
+                    stack.push(neighbour);
+                    visited.insert(neighbour, DFSVertexStatus::InStack);
+                    if self.dfs_has_cycle(stack, visited)? {
+                        return Ok(true);
+                    }
                 }
-                stack.push(id);
-                true
-            }) {
-                return Ok(false)
             }
-            visited.insert(current);
         }
-        Ok(true)
+        visited.insert(top, DFSVertexStatus::Done);
+        stack.pop();
+        Ok(false)
+    }
+
+    fn dependency_cycle_exists(&self) -> Result<bool, Error> {
+        let mut visited : HashMap<&TaskId, DFSVertexStatus> = self.get_tasks()
+            .map(|t| (t.id(), DFSVertexStatus::NotVisited))
+            .collect::<HashMap<&TaskId, DFSVertexStatus>>();
+
+        for task_id in self.get_tasks().map(|t| t.id()) {
+            if let Some(DFSVertexStatus::NotVisited) = visited.get(task_id) {
+                let mut stack : Vec<&TaskId> = vec![task_id];
+                visited.insert(task_id, DFSVertexStatus::InStack);
+                if self.dfs_has_cycle(&mut stack, &mut visited)? {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
     }
 }
 
@@ -504,5 +529,8 @@ mod tests {
 
         assert_eq!(tasks.get(&task_id_2_1), Ok(&Task::new(TaskId::new(vec![2,1]), "Create plot visualizer")));
         assert_eq!(tasks.get_mut(&task_id_2_1), Ok(&mut Task::new(TaskId::new(vec![2,1]), "Create plot visualizer")));
+
+        assert_eq!(tasks.add_dependency(&task_id_1_1, &task_id_2_1), Ok(()));
+        assert_eq!(tasks.add_dependency(&task_id_2_1, &task_id_1_1), Err(Error::EdgeCreationLeadsToCycle(task_id_2_1.clone(), task_id_1_1.clone())));
     }
 }

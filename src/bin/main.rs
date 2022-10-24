@@ -145,6 +145,20 @@ enum TaskCommands {
     Todo {
         /// Show only this member's incomplete tasks
         name: Option<String>
+    },
+    /// Add task dependency
+    AddDependency {
+        #[clap(value_parser = task_id_parser)]
+        id: TaskId,
+        #[clap(value_parser = task_id_parser)]
+        dependency: TaskId,
+    },
+    /// Remove task dependency
+    RemoveDependency {
+        #[clap(value_parser = task_id_parser)]
+        id: TaskId,
+        #[clap(value_parser = task_id_parser)]
+        dependency: TaskId
     }
 }
 
@@ -196,7 +210,19 @@ fn process_tasks(command: &TaskCommands, project_filename: &str) -> Result<Proje
                 project.tasks().get_todo_tasks().for_each(|t| println!("{}" ,t));
             }
         },
-    }
+        TaskCommands::AddDependency { id, dependency } => {
+            project.tasks_mut(|tasks| {
+                tasks.add_dependency(id, dependency)?;
+                Ok(())
+            })?;
+        },
+        TaskCommands::RemoveDependency { id, dependency } => {
+            project.tasks_mut(|tasks| {
+                tasks.remove_dependency(id, dependency)?;
+                Ok(())
+            })?;
+        },
+    };
     Ok(project)
 }
 
