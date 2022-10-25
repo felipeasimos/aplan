@@ -98,7 +98,7 @@ enum TaskCommands {
         #[clap(short, long, default_value = "text")]
         format: ShowFormat,
 
-        /// File to write the visualization in DOT language
+        /// File to write the visualization to
         #[clap(short, long, value_parser)]
         output: Option<String>,
     },

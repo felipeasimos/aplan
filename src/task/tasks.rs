@@ -303,7 +303,7 @@ impl Tasks {
             self.cpi(),
             self.cv());
         format!(
-            "digraph G {{\nlabel=\"{}\"\n{}}}",
+            "digraph G {{\ngraph [label=\"{}\", rankdir=TB, splines=true, layout=dot, overlap=true, newrank=true];\n{}}}",
             stats,
             self.subtasks_to_dot_str(&TaskId::get_root_id()))
     }
@@ -315,9 +315,18 @@ impl Tasks {
 
         root.child_ids().for_each(|child_id| {
             let child = self.get(&child_id).unwrap();
-            s += &format!("\t\"{}\" -> \"{}\"\n", root_str, child.to_dot_str());
+            s += &format!("\t\"{}\" -> \"{}\" [style=solid, weight=100, constraint=true]\n", root_str, child.to_dot_str());
+        });
+        root.child_ids().for_each(|child_id| {
             s += &self.subtasks_to_dot_str(&child_id);
         });
+
+        // dependencies
+        root.dependencies.iter()
+            .map(|child_id| self.get(&child_id).unwrap())
+            .for_each(|child| {
+                s += &format!("\t\"{}\" -> \"{}\" [style=dashed, weight=0, constraint=false]\n", root_str, child.to_dot_str());
+            });
         s
     }
 
