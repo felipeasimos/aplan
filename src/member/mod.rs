@@ -3,23 +3,21 @@ pub(crate) mod members;
 use std::collections::{HashSet, HashMap};
 use std::fmt::Display;
 
-use chrono::{Utc, DateTime};
+use chrono::{Utc, DateTime, NaiveDate, NaiveDateTime};
 use serde::{Serialize, Deserialize};
 use serde_with::serde_as;
 
 use crate::task::task_id::TaskId;
 
-type Cost = f64;
-
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Member {
     name: String,
-    weekly_cost: Cost,
+    weekly_cost: f64,
     #[serde_as(as = "HashSet<_>")]
     tasks: HashSet<TaskId>,
     #[serde_as(as = "Vec<(_, _)>")]
-    routine_exceptions: HashMap<DateTime<Utc>, Cost>
+    routine_exceptions: HashMap<NaiveDateTime, f64>
 }
 
 impl Member {
@@ -46,6 +44,22 @@ impl Member {
 
     pub(crate) fn remove_task(&mut self, task_id: &TaskId) {
         self.tasks.remove(task_id);
+    }
+
+    fn to_datetime(date: &NaiveDate) -> NaiveDateTime {
+        date.and_hms(0, 0, 0)
+    }
+
+    pub(crate) fn add_routine_exception(&mut self, date: &NaiveDate, cost: f64) {
+        self.routine_exceptions.insert(Member::to_datetime(date), cost);
+    }
+
+    pub(crate) fn remove_routine_exception(&mut self, date: &NaiveDate) {
+        self.routine_exceptions.remove(&Member::to_datetime(date));
+    }
+
+    pub(crate) fn get_routine_exception(&self, date: &NaiveDate) -> Option<&f64> {
+        self.routine_exceptions.get(&Member::to_datetime(date))
     }
 }
 

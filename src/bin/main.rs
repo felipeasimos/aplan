@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use chrono::{Utc, NaiveDateTime, NaiveDate};
 use clap::{Parser, Subcommand};
 use aplan::prelude::*;
 
@@ -86,6 +87,27 @@ enum MemberCommands {
         /// Task id
         #[clap(value_parser = task_id_parser)]
         id: TaskId
+    },
+    /// Add routine exception
+    AddException {
+        /// Name of the member
+        #[clap(value_parser)]
+        name: String,
+        /// Date of the exception
+        #[clap(value_parser = date_parser)]
+        date: NaiveDate,
+        /// Cost of the exception
+        #[clap(value_parser)]
+        cost: f64
+    },
+    /// Remove routine exception
+    RemoveException {
+        /// Name of the member
+        #[clap(value_parser)]
+        name: String,
+        /// Date of the exception
+        #[clap(value_parser = date_parser)]
+        date: NaiveDate,
     }
 }
 
@@ -166,6 +188,12 @@ fn task_id_parser(s: &str) -> Result<TaskId, String> {
     TaskId::parse(s).or_else(|_| Err(s.to_string()))
 }
 
+fn date_parser(s: &str) -> Result<NaiveDate, String> {
+    NaiveDateTime::parse_from_str(s, "%d/%m/%Y")
+        .map(|dt| dt.date())
+        .map_err(|e| s.to_string())
+}
+
 fn process_tasks(command: &TaskCommands, project_filename: &str) -> Result<Project, Error> {
     let mut project = Project::load(project_filename)?;
     match command {
@@ -231,36 +259,50 @@ fn process_member(command: &MemberCommands, project_filename: &str) -> Result<Pr
     Ok(match command {
         MemberCommands::List {  } => {
             project
-            .members_mut(|member| {
-                member.list_members().for_each(|m| println!("{}", m));
+            .members_mut(|members| {
+                members.list_members().for_each(|m| println!("{}", m));
                 Ok(())
             })
         },
         MemberCommands::Add { name } => {
             project
-            .members_mut(|member| {
-                member.add_member(name)?;
+            .members_mut(|members| {
+                members.add_member(name)?;
                 Ok(())
             })
         },
         MemberCommands::Remove { name } => {
             project
-            .members_mut(|member| {
-                member.remove_member(name)?;
+            .members_mut(|members| {
+                members.remove_member(name)?;
                 Ok(())
             })
         },
         MemberCommands::Assign { name, id } => {
             project
-            .members_mut(|member| {
-                member.assign_task_to_member(id.clone(), name)?;
+            .members_mut(|members| {
+                members.assign_task_to_member(id.clone(), name)?;
                 Ok(())
             })
         },
         MemberCommands::RemoveTask { name, id } => {
             project
-            .members_mut(|member| {
-                member.remove_member_from_task(id.clone(), name)?;
+            .members_mut(|members| {
+                members.remove_member_from_task(id.clone(), name)?;
+                Ok(())
+            })
+        },
+        MemberCommands::AddException { name, date, cost } => {
+            project
+            .members_mut(|members| {
+                members.add_routine_exception(name, date, *cost)?;
+                Ok(())
+            })
+        },
+        MemberCommands::RemoveException { name, date } => {
+            project
+            .members_mut(|members| {
+                members.remove_routine_exception(name, date)?;
                 Ok(())
             })
         },

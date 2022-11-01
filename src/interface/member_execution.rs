@@ -1,3 +1,5 @@
+use chrono::NaiveDate;
+
 use crate::{task::task_id::TaskId, prelude::{Project, Member, Error}};
 
 #[derive(Debug)]
@@ -28,6 +30,20 @@ impl<'a> MemberExecution<'a> {
 
     pub fn remove_member(&mut self, name: &str) -> Result<Member, Error> {
         self.project.members.remove_member(name, &mut self.project.tasks)
+    }
+
+    pub fn add_routine_exception(&mut self, name: &str, date: &NaiveDate, cost: f64) -> Result<&mut Self, Error> {
+        self.project.members
+            .get_mut(name)?
+            .add_routine_exception(date, cost);
+        Ok(self)
+    }
+
+    pub fn remove_routine_exception(&mut self, name: &str, date: &NaiveDate) -> Result<&mut Self, Error> {
+        self.project.members
+            .get_mut(name)?
+            .remove_routine_exception(date);
+        Ok(self)
     }
 
     pub fn assign_task_to_member(&mut self, id: TaskId, name: &str) -> Result<&mut Self, Error> {
